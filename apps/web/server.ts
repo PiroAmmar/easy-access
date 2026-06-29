@@ -14,26 +14,38 @@ const port = parseInt(process.env.PORT || '3000', 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-app.prepare().then(async () => {
-  // Import ws-server lazily so it initializes after the app is ready
-  const { createWsServer } = await import('./lib/ws-server');
+app
+  .prepare()
+  .then(async () => {
+    // Import ws-server lazily so it initializes after the app is ready
+    const { createWsServer } = await import('./lib/ws-server');
 
-  const httpServer = createServer(async (req, res) => {
-    try {
-      const parsedUrl = parse(req.url!, true);
-      await handle(req, res, parsedUrl);
-    } catch (err) {
-      console.error('[Server] Error handling request:', err);
-      res.statusCode = 500;
-      res.end('Internal Server Error');
-    }
+    const httpServer = createServer(async (req, res) => {
+      try {
+        const parsedUrl = parse(req.url!, true);
+        await handle(req, res, parsedUrl);
+      } catch (err) {
+        console.error('[Server] Error handling request:', err);
+        res.statusCode = 500;
+        res.end('Internal Server Error');
+      }
+    });
+
+    // Attach WebSocket server BEFORE listening
+    createWsServer(httpServer);
+
+    httpServer.listen(port, hostname, () => {
+      console.log(`> Ready on http://${hostname}:${port}`);
+      console.log(`> WebSocket server attached at ws://${hostname}:${port}/ws`);
+    });
+
+    httpServer.on('error', (err: Error) => {
+      console.error('[Server] HTTP server error:', err);
+      process.exit(1);
+    });
+  })
+  .catch((err) => {
+    console.error('[Server] Failed to prepare Next.js app:', err);
+    process.exit(1);
   });
 
-  // Attach WebSocket server BEFORE listening
-  createWsServer(httpServer);
-
-  httpServer.listen(port, hostname, () => {
-    console.log(`> Ready on http://${hostname}:${port}`);
-    console.log(`> WebSocket server attached at ws://${hostname}:${port}/ws`);
-  });
-});
