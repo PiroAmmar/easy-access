@@ -17,14 +17,12 @@ export default auth((req: NextRequest & { auth: unknown }) => {
 
   // Redirect unauthenticated users to login
   if (!isAuthenticated && !isLoginPage) {
-    const loginUrl = new URL('/login', req.nextUrl.origin);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL('/login', req.url));
   }
 
   // Redirect authenticated users away from login page
   if (isAuthenticated && isLoginPage) {
-    const dashboardUrl = new URL('/dashboard', req.nextUrl.origin);
-    return NextResponse.redirect(dashboardUrl);
+    return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
   return NextResponse.next();
@@ -33,3 +31,4 @@ export default auth((req: NextRequest & { auth: unknown }) => {
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
+
