@@ -42,6 +42,9 @@ importers:
       '@auth/pg-adapter':
         specifier: ^1.7.4
         version: 1.11.2(pg@8.21.0)
+      '@easy-access/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@next/env':
         specifier: ^16.2.7
         version: 16.2.7
@@ -63,6 +66,12 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.7(react@19.2.7)
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.4
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
       ws:
         specifier: ^8.18.0
         version: 8.21.0
@@ -70,9 +79,6 @@ importers:
         specifier: ^5.0.0
         version: 5.0.14(@types/react@19.2.17)(react@19.2.7)
     devDependencies:
-      '@easy-access/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
@@ -91,12 +97,6 @@ importers:
       '@types/ws':
         specifier: ^8.5.13
         version: 8.18.1
-      tsx:
-        specifier: ^4.19.0
-        version: 4.22.4
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
 
   packages/shared:
     devDependencies:
