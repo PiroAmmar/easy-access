@@ -254,7 +254,7 @@ export async function getAdminByUsername(username: string): Promise<Admin | null
     `SELECT id, username,
             password_hash AS "passwordHash",
             created_at    AS "createdAt"
-     FROM admins WHERE username = $1`,
+     FROM admins WHERE LOWER(username) = LOWER($1)`,
     [username]
   );
 }
