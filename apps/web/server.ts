@@ -1,0 +1,39 @@
+// apps/web/server.ts
+// Custom Next.js server — required because App Router cannot upgrade WebSocket
+// connections in route handlers. The WebSocket server is attached to the
+// underlying HTTP server before Next.js handles any requests.
+
+import { createServer } from 'http';
+import { parse } from 'url';
+import next from 'next';
+
+const dev = process.env.NODE_ENV !== 'production';
+const hostname = process.env.HOSTNAME ?? 'localhost';
+const port = parseInt(process.env.PORT ?? '3000', 10);
+
+const app = next({ dev, hostname, port });
+const handle = app.getRequestHandler();
+
+app.prepare().then(async () => {
+  // Import ws-server lazily so it initializes after the app is ready
+  const { createWsServer } = await import('./lib/ws-server');
+
+  const httpServer = createServer(async (req, res) => {
+    try {
+      const parsedUrl = parse(req.url!, true);
+      await handle(req, res, parsedUrl);
+    } catch (err) {
+      console.error('[Server] Error handling request:', err);
+      res.statusCode = 500;
+      res.end('Internal Server Error');
+    }
+  });
+
+  // Attach WebSocket server BEFORE listening
+  createWsServer(httpServer);
+
+  httpServer.listen(port, () => {
+    console.log(`> Ready on http://${hostname}:${port}`);
+    console.log(`> WebSocket server attached at ws://${hostname}:${port}/ws`);
+  });
+});
