@@ -116,7 +116,7 @@ export default function ServerDetailClient({ serverId }: { serverId: string }) {
         <div className="section-header">
           <h2 className="section-title">Allowed Directories</h2>
         </div>
-        
+
         <div className="item-list">
           {server.allowedDirs.length === 0 ? (
             <div className="empty-state" style={{ padding: 'var(--space-6)' }}>
