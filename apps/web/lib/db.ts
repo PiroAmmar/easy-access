@@ -4,12 +4,22 @@
 
 import { Pool } from 'pg';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 10,                    // Maximum concurrent connections
-  idleTimeoutMillis: 30_000,  // Close idle connections after 30s
-  connectionTimeoutMillis: 5_000, // Fail fast if can't connect in 5s
-});
+const globalForDb = globalThis as unknown as {
+  pool: Pool | undefined;
+};
+
+export const pool =
+  globalForDb.pool ??
+  new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 10,                    // Maximum concurrent connections
+    idleTimeoutMillis: 30_000,  // Close idle connections after 30s
+    connectionTimeoutMillis: 5_000, // Fail fast if can't connect in 5s
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForDb.pool = pool;
+}
 
 pool.on('error', (err: Error) => {
   console.error('[DB] Unexpected error on idle client:', err);
