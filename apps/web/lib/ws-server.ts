@@ -11,6 +11,7 @@ import { getServerByToken, updateServerAllowedDirs } from '@/db/queries';
 import type { WSMessage, MessageType } from '@easy-access/shared';
 
 function sendToWs<T>(ws: WebSocket, type: MessageType, payload: T): void {
+  if (ws.readyState !== WebSocket.OPEN) return;
   ws.send(
     JSON.stringify({
       id: crypto.randomUUID(),
@@ -35,67 +36,72 @@ export function createWsServer(httpServer: HttpServer): void {
     }, 10_000);
 
     ws.on('message', async (data: import('ws').RawData) => {
-      let msg: WSMessage;
-
       try {
-        msg = JSON.parse(data.toString()) as WSMessage;
-      } catch {
-        ws.close(4000, 'Invalid JSON');
-        return;
-      }
+        let msg: WSMessage;
 
-      // Only allow agent:auth before authentication completes
-      if (!serverId && msg.type !== 'agent:auth') {
-        ws.close(4002, 'Not authenticated');
-        return;
-      }
-
-      if (msg.type === 'agent:auth') {
-        const { token, allowedDirs } = msg.payload as { token: string; agentVersion: string; allowedDirs?: string[] };
-
-        // NEVER log the token value itself
-        if (!token || typeof token !== 'string' || token.length < 10) {
-          ws.close(4003, 'Invalid token format');
+        try {
+          msg = JSON.parse(data.toString()) as WSMessage;
+        } catch {
+          if (ws.readyState === WebSocket.OPEN) ws.close(4000, 'Invalid JSON');
           return;
         }
 
-        try {
-          // Artificial delay to slow brute-force attempts
-          const server = await getServerByToken(token).catch(() => null);
-          if (!server) {
-            await new Promise((r) => setTimeout(r, 500));
-            sendToWs(ws, 'hub:auth-reject', {});
-            ws.close(4003, 'Invalid token');
+        // Only allow agent:auth before authentication completes
+        if (!serverId && msg.type !== 'agent:auth') {
+          if (ws.readyState === WebSocket.OPEN) ws.close(4002, 'Not authenticated');
+          return;
+        }
+
+        if (msg.type === 'agent:auth') {
+          const { token, allowedDirs } = msg.payload as { token: string; agentVersion: string; allowedDirs?: string[] };
+
+          if (!token || typeof token !== 'string' || token.length < 10) {
+            if (ws.readyState === WebSocket.OPEN) ws.close(4003, 'Invalid token format');
             return;
           }
 
-          clearTimeout(authDeadline);
-          serverId = server.id;
+          try {
+            const server = await getServerByToken(token).catch((err) => {
+              console.error('[WS] Database error verifying token:', err);
+              return null;
+            });
 
-          // Sync allowed directories from Agent (Zero-Trust)
-          if (Array.isArray(allowedDirs)) {
-            await updateServerAllowedDirs(server.id, allowedDirs);
-            server.allowedDirs = allowedDirs;
+            if (!server) {
+              await new Promise((r) => setTimeout(r, 500));
+              sendToWs(ws, 'hub:auth-reject', {});
+              if (ws.readyState === WebSocket.OPEN) ws.close(4003, 'Invalid token');
+              return;
+            }
+
+            clearTimeout(authDeadline);
+            serverId = server.id;
+
+            if (Array.isArray(allowedDirs)) {
+              await updateServerAllowedDirs(server.id, allowedDirs);
+              server.allowedDirs = allowedDirs;
+            }
+
+            connectionManager.register(server.id, ws);
+            sendToWs(ws, 'hub:auth-ok', {
+              serverId: server.id,
+              serverName: server.name,
+            });
+
+            console.log(`[WS] Agent authenticated: ${server.name} (${server.id})`);
+          } catch (err) {
+            console.error('[WS] Auth handler error:', err);
+            sendToWs(ws, 'hub:auth-reject', {});
+            if (ws.readyState === WebSocket.OPEN) ws.close(4004, 'Server error during auth');
           }
-
-          connectionManager.register(server.id, ws);
-          sendToWs(ws, 'hub:auth-ok', {
-            serverId: server.id,
-            serverName: server.name,
-          });
-
-          console.log(`[WS] Agent authenticated: ${server.name} (${server.id})`);
-        } catch (err) {
-          console.error('[WS] Auth handler error:', err);
-          sendToWs(ws, 'hub:auth-reject', {});
-          ws.close(4004, 'Server error during auth');
+          return;
         }
-        return;
-      }
 
-      // Route authenticated agent messages (Phase 2)
-      if (serverId) {
-        connectionManager.handleAgentMessage(serverId, msg);
+        // Route authenticated agent messages (Phase 2)
+        if (serverId) {
+          connectionManager.handleAgentMessage(serverId, msg);
+        }
+      } catch (fatalErr) {
+        console.error('[WS] Fatal error in message handler:', fatalErr);
       }
     });
 

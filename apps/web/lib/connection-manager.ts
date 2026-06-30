@@ -3,6 +3,7 @@
 // Tracks live connections and pairs async requests with agent responses.
 
 import { WebSocket } from 'ws';
+import crypto from 'crypto';
 import { updateServerOnlineStatus, updateServerSystemInfo, logActivity } from '@/db/queries';
 import type { WSMessage, MessageType, DiskInfo } from '@easy-access/shared';
 
@@ -148,13 +149,14 @@ class ConnectionManager {
     cpuUsagePercent: number;
     totalRamMb: number;
     usedRamMb: number;
-    disks: DiskInfo[];
+    disks?: DiskInfo[];
   }): void {
+    const disks = info.disks || [];
     // Convert DiskInfo to ServerDiskInfo format for DB
     const diskUsage: ServerDiskInfo = {
-      totalGb: info.disks.reduce((sum, d) => sum + d.totalGb, 0),
-      usedGb: info.disks.reduce((sum, d) => sum + d.usedGb, 0),
-      freeGb: info.disks.reduce((sum, d) => sum + d.freeGb, 0),
+      totalGb: disks.reduce((sum, d) => sum + d.totalGb, 0),
+      usedGb: disks.reduce((sum, d) => sum + d.usedGb, 0),
+      freeGb: disks.reduce((sum, d) => sum + d.freeGb, 0),
     };
 
     updateServerSystemInfo(serverId, {
