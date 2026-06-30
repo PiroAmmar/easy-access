@@ -4,6 +4,7 @@
 // IMPORTANT: This file must only be imported from server.ts — NOT from Next.js API routes.
 
 import type { Server as HttpServer } from 'http';
+import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { connectionManager } from './connection-manager';
 import { getServerByToken, updateServerAllowedDirs } from '@/db/queries';
