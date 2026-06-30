@@ -69,6 +69,7 @@ export async function transaction<T>(
 const SERVER_SELECT = `
   SELECT id, name, description,
          agent_token   AS "agentToken",
+         admin_id      AS "adminId",
          allowed_dirs  AS "allowedDirs",
          last_seen     AS "lastSeen",
          is_online     AS "isOnline",
@@ -92,18 +93,19 @@ export async function getServerByToken(token: string): Promise<Server | null> {
 /**
  * Get all servers ordered by creation date (for dashboard overview).
  */
-export async function getAllServers(): Promise<Server[]> {
-  return query<Server>(`${SERVER_SELECT} ORDER BY created_at DESC`);
+export async function getAllServers(adminId: string): Promise<Server[]> {
+  return query<Server>(`${SERVER_SELECT} WHERE admin_id = $1 ORDER BY created_at DESC`, [adminId]);
 }
 
 /**
  * Get a single server by its UUID.
  */
-export async function getServerById(id: string): Promise<Server | null> {
-  return queryOne<Server>(
-    `${SERVER_SELECT} WHERE id = $1`,
-    [id]
-  );
+export async function getServerById(id: string, adminId?: string): Promise<Server | null> {
+  if (adminId) {
+    return queryOne<Server>(`${SERVER_SELECT} WHERE id = $1 AND admin_id = $2`, [id, adminId]);
+  }
+  // Internal use (e.g. WebSocket auth) — no adminId filter
+  return queryOne<Server>(`${SERVER_SELECT} WHERE id = $1`, [id]);
 }
 
 /**
@@ -115,12 +117,14 @@ export async function createServer(data: {
   description?: string;
   agentToken: string;
   allowedDirs: string[];
+  adminId: string;
 }): Promise<Server> {
   const [server] = await query<Server>(
-    `INSERT INTO servers (name, description, agent_token, allowed_dirs)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO servers (name, description, agent_token, allowed_dirs, admin_id)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING id, name, description,
                agent_token  AS "agentToken",
+               admin_id     AS "adminId",
                allowed_dirs AS "allowedDirs",
                last_seen    AS "lastSeen",
                is_online    AS "isOnline",
@@ -128,7 +132,7 @@ export async function createServer(data: {
                disk_usage   AS "diskUsage",
                created_at   AS "createdAt",
                updated_at   AS "updatedAt"`,
-    [data.name, data.description ?? null, data.agentToken, JSON.stringify(data.allowedDirs)]
+    [data.name, data.description ?? null, data.agentToken, JSON.stringify(data.allowedDirs), data.adminId]
   );
   return server;
 }

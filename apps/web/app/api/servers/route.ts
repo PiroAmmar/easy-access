@@ -17,8 +17,13 @@ export async function GET(): Promise<NextResponse<ApiResponse<Server[]>>> {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
+  const adminId = session.user?.id;
+  if (!adminId) {
+    return NextResponse.json({ success: false, error: 'Session missing user ID' }, { status: 400 });
+  }
+
   try {
-    const servers = await getAllServers();
+    const servers = await getAllServers(adminId);
     const onlineIds = connectionManager.getOnlineServerIds();
     const mapped = servers.map(s => ({ ...s, isOnline: onlineIds.includes(s.id) }));
     return NextResponse.json({ success: true, data: mapped });
@@ -36,6 +41,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<S
   const session = await auth();
   if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const adminId = session.user?.id;
+  if (!adminId) {
+    return NextResponse.json({ success: false, error: 'Session missing user ID' }, { status: 400 });
   }
 
   try {
@@ -70,6 +80,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<S
       description: typeof description === 'string' ? description.trim() : undefined,
       agentToken,
       allowedDirs: allowedDirs as string[],
+      adminId,
     });
 
     return NextResponse.json({ success: true, data: server }, { status: 201 });

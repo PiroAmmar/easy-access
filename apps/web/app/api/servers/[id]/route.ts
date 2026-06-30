@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { getServerById, deleteServer, updateServerAllowedDirs, execute } from '@/db/queries';
+import { getServerById, deleteServer, execute } from '@/db/queries';
 import { connectionManager } from '@/lib/connection-manager';
 import type { ApiResponse, Server } from '@easy-access/shared';
 
@@ -14,8 +14,9 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
+  const adminId = session.user?.id;
   const { id } = await params;
-  const server = await getServerById(id);
+  const server = await getServerById(id, adminId);
   if (!server) {
     return NextResponse.json({ success: false, error: 'Server not found' }, { status: 404 });
   }
@@ -36,8 +37,9 @@ export async function PUT(
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
+  const adminId = session.user?.id;
   const { id } = await params;
-  const server = await getServerById(id);
+  const server = await getServerById(id, adminId);
   if (!server) {
     return NextResponse.json({ success: false, error: 'Server not found' }, { status: 404 });
   }
@@ -74,11 +76,11 @@ export async function PUT(
     values.push(id);
 
     await execute(
-      `UPDATE servers SET ${updates.join(', ')} WHERE id = $${paramIdx}`,
-      values
+      `UPDATE servers SET ${updates.join(', ')} WHERE id = $${paramIdx} AND admin_id = $${paramIdx + 1}`,
+      [...values, adminId]
     );
 
-    const updated = await getServerById(id);
+    const updated = await getServerById(id, adminId);
     return NextResponse.json({ success: true, data: updated! });
   } catch (err) {
     console.error('[API] PUT /api/servers/[id] error:', err);
@@ -96,7 +98,15 @@ export async function DELETE(
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
+  const adminId = session.user?.id;
   const { id } = await params;
+
+  // Verify ownership before deleting
+  const server = await getServerById(id, adminId);
+  if (!server) {
+    return NextResponse.json({ success: false, error: 'Server not found' }, { status: 404 });
+  }
+
   const deleted = await deleteServer(id);
   if (!deleted) {
     return NextResponse.json({ success: false, error: 'Server not found' }, { status: 404 });

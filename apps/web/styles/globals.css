@@ -688,6 +688,12 @@ code, pre, kbd {
   max-height: 85vh;
   width: 100%;
   overflow: visible;
+  /* Center the native <dialog> element on all browsers */
+  margin: auto;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .modal-dialog::backdrop {

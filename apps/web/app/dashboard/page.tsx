@@ -1,6 +1,6 @@
-import { getAllServers } from '@/db/queries';
-import { getAllActivities } from '@/db/queries';
+import { getAllServers, getAllActivities } from '@/db/queries';
 import { connectionManager } from '@/lib/connection-manager';
+import { auth } from '@/lib/auth';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
@@ -11,8 +11,11 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
+  const session = await auth();
+  const adminId = session?.user?.id ?? '';
+
   const [servers, activities] = await Promise.all([
-    getAllServers(),
+    getAllServers(adminId),
     getAllActivities(10),
   ]);
 

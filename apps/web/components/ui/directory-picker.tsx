@@ -43,9 +43,10 @@ export default function DirectoryPicker({ open, onClose, onSelect }: DirectoryPi
 
   useEffect(() => {
     if (open) {
-      fetchDirs(currentPath || undefined); // Use currentPath if already navigated, else default
+      setCurrentPath('');
+      fetchDirs(undefined); // Always start at OS home directory
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   return (
