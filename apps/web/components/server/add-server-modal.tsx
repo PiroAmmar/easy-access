@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Modal from '@/components/ui/modal';
-import DirectoryPicker from '@/components/ui/directory-picker';
 
 interface AddServerModalProps {
   open: boolean;
@@ -18,7 +17,6 @@ export default function AddServerModal({ open, onClose, onAdd }: AddServerModalP
   const [error, setError] = useState('');
   const [token, setToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,14 +30,12 @@ export default function AddServerModal({ open, onClose, onAdd }: AddServerModalP
       setIsSubmitting(false);
       return;
     }
-    if (allowedDirs.length === 0) {
-      setError('At least one allowed directory is required');
-      setIsSubmitting(false);
-      return;
-    }
+
+    // Default to root if no dirs provided — can be edited after agent connects
+    const dirs = allowedDirs.length > 0 ? allowedDirs : [process.platform === 'win32' ? 'C:\\' : '/home'];
 
     try {
-      const result = await onAdd({ name: name.trim(), description: description.trim() || undefined, allowedDirs });
+      const result = await onAdd({ name: name.trim(), description: description.trim() || undefined, allowedDirs: dirs });
       setToken(result.agentToken);
     } catch (err) {
       setError((err as Error).message);
@@ -55,7 +51,6 @@ export default function AddServerModal({ open, onClose, onAdd }: AddServerModalP
     setError('');
     setToken(null);
     setCopied(false);
-    setShowPicker(false);
     onClose();
   };
 
@@ -109,26 +104,17 @@ export default function AddServerModal({ open, onClose, onAdd }: AddServerModalP
             <input id="server-desc" className="form-input" type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" />
           </div>
           <div className="form-group">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <label className="form-label" htmlFor="server-dirs">Allowed Directories *</label>
-              <button 
-                type="button" 
-                className="btn btn-secondary btn-sm"
-                onClick={() => setShowPicker(true)}
-              >
-                Browse Local
-              </button>
-            </div>
+            <label className="form-label" htmlFor="server-dirs">Allowed Directories <span style={{ color: 'var(--text-tertiary)', fontWeight: 'normal' }}>(optional)</span></label>
             <textarea
               id="server-dirs"
               className="form-input"
               style={{ minHeight: '80px', resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}
               value={dirsInput}
               onChange={(e) => setDirsInput(e.target.value)}
-              placeholder={'One directory per line, e.g.:\nC:\\Users\\Data\nD:\\SharedFiles'}
+              placeholder={'One directory per line, e.g.:\nC:\\Users\\YourName\\Documents\nD:\\Projects'}
             />
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
-              The agent will only serve files from these directories. If the hub is running locally, you can use "Browse Local" to select paths.
+              These directories will be included in the initial configuration script. To change them later, you must edit the <code>config.json</code> on the remote machine.
             </span>
           </div>
           <div className="modal-footer" style={{ padding: 0, borderTop: 'none' }}>
@@ -139,17 +125,6 @@ export default function AddServerModal({ open, onClose, onAdd }: AddServerModalP
           </div>
         </form>
       )}
-
-      <DirectoryPicker 
-        open={showPicker} 
-        onClose={() => setShowPicker(false)} 
-        onSelect={(selectedPath) => {
-          setDirsInput(prev => {
-            const current = prev.trim();
-            return current ? `${current}\n${selectedPath}` : selectedPath;
-          });
-        }} 
-      />
     </Modal>
   );
 }

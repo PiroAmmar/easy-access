@@ -52,6 +52,7 @@ export class AgentConnection {
       const authPayload: AgentAuthPayload = {
         token: this.config.agentToken,
         agentVersion: PKG_VERSION,
+        allowedDirs: this.config.allowedDirs,
       };
       this.send('agent:auth', authPayload);
 

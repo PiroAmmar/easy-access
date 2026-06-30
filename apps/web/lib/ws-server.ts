@@ -6,7 +6,7 @@
 import type { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { connectionManager } from './connection-manager';
-import { getServerByToken } from '@/db/queries';
+import { getServerByToken, updateServerAllowedDirs } from '@/db/queries';
 import type { WSMessage, MessageType } from '@easy-access/shared';
 
 function sendToWs<T>(ws: WebSocket, type: MessageType, payload: T): void {
@@ -50,7 +50,7 @@ export function createWsServer(httpServer: HttpServer): void {
       }
 
       if (msg.type === 'agent:auth') {
-        const { token } = msg.payload as { token: string; agentVersion: string };
+        const { token, allowedDirs } = msg.payload as { token: string; agentVersion: string; allowedDirs?: string[] };
 
         // NEVER log the token value itself
         if (!token || typeof token !== 'string' || token.length < 10) {
@@ -70,6 +70,13 @@ export function createWsServer(httpServer: HttpServer): void {
 
           clearTimeout(authDeadline);
           serverId = server.id;
+
+          // Sync allowed directories from Agent (Zero-Trust)
+          if (Array.isArray(allowedDirs)) {
+            await updateServerAllowedDirs(server.id, allowedDirs);
+            server.allowedDirs = allowedDirs;
+          }
+
           connectionManager.register(server.id, ws);
           sendToWs(ws, 'hub:auth-ok', {
             serverId: server.id,

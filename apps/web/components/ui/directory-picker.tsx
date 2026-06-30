@@ -27,10 +27,18 @@ export default function DirectoryPicker({ open, onClose, onSelect }: DirectoryPi
     try {
       const url = pathQuery ? `/api/local-fs?path=${encodeURIComponent(pathQuery)}` : '/api/local-fs';
       const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error('Failed to load directory contents');
-      }
       const data = await res.json();
+
+      if (!res.ok) {
+        // Special handling for cloud deployments
+        if (data.error === 'CLOUD_DEPLOY') {
+          setError(data.message);
+        } else {
+          throw new Error(data.error || 'Failed to load directory contents');
+        }
+        return;
+      }
+
       setCurrentPath(data.currentPath);
       setParentPath(data.parentPath);
       setDirectories(data.directories || []);

@@ -43,6 +43,7 @@ export type MessageType =
 export interface AgentAuthPayload {
   token: string;        // The server's unique agent token from DB
   agentVersion: string; // e.g. "1.0.0"
+  allowedDirs: string[];
 }
 
 export interface AgentHeartbeatPayload {
