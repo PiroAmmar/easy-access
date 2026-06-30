@@ -77,8 +77,12 @@ export function createWsServer(httpServer: HttpServer): void {
             serverId = server.id;
 
             if (Array.isArray(allowedDirs)) {
-              await updateServerAllowedDirs(server.id, allowedDirs);
-              server.allowedDirs = allowedDirs;
+              try {
+                await updateServerAllowedDirs(server.id, allowedDirs);
+                server.allowedDirs = allowedDirs;
+              } catch (updateErr) {
+                console.warn('[WS] Failed to sync allowed dirs to DB:', updateErr);
+              }
             }
 
             connectionManager.register(server.id, ws);
