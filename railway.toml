@@ -1,0 +1,9 @@
+﻿[build]
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @easy-access/web build"
+
+[deploy]
+startCommand = "node node_modules/.bin/tsx apps/web/server.ts"
+healthcheckPath = "/"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
