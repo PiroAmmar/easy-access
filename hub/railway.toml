@@ -1,0 +1,16 @@
+# Railway configuration for the Easy Access Hub.
+# In Railway: create a service from this repo and set the service's
+# Root Directory to "hub". Add a PostgreSQL database to the project and set
+# the env vars listed in .env.local.example (DATABASE_URL, AUTH_SECRET,
+# ADMIN_USERNAME, ADMIN_PASSWORD).
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm install && npm run build"
+
+[deploy]
+startCommand = "npm run start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

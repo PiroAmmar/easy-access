@@ -1,0 +1,20 @@
+# Local development database for the hub.
+# Run: docker compose up -d
+# Matches the DATABASE_URL in .env.local.example (port 5434).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: easy-access-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: easy_access
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5434:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

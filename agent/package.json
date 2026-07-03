@@ -1,0 +1,25 @@
+{
+  "name": "easy-access-agent",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "setup": "tsx src/index.ts setup",
+    "build": "tsc --project tsconfig.json",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/ws": "^8.5.13"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

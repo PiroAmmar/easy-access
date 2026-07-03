@@ -4,51 +4,31 @@
 
 - Keep responses concise and to the point - unless the user asks otherwise
 
-## PLANNING MODE
-
-- Always ask clarifying questions
-- Never assume design, tech stack or features
-- Use deep-dive sub-agents to assist with research
-- Use deep-dive sub-agents to review the different aspects of your plan before presenting to the user
-
-## CHANGE / EDIT MODE
-
-- Never implement features yourself when possible - use sub-agents!
-- Identify changes from the plan that can be implemented in parallel, and use sub-agents to implement the features efficiently
-- When using sub-agents to implement features, act as a coordinator only
-- Use the best model for the task - premium models for complex tasks (like coding) and mid-tier models for simpler tasks, like documentation
-- After completing features (large or small), always run commands like lint, type check and next build to check code quality
-
 ## DATABASE
 
 - NEVER use Prisma or any ORM — raw `pg` (node-postgres) only
 - NEVER interpolate user input into SQL strings — always use `$1, $2, ...` placeholders
-- Always use the shared pool from `apps/web/lib/db.ts` — never create a new Pool
+- Always use the shared pool from `hub/lib/db.ts` — never create a new Pool
 - Use snake_case in SQL, camelCase in TypeScript. Bridge via `AS "camelCase"` aliases in SELECT
-- See `.agents/skills/pg-patterns/SKILL.md` for all query patterns
 
 ## SECURITY (NON-NEGOTIABLE)
 
 - NEVER allow `../` or path traversal in file operations
-- ALL file paths must be resolved against the server's `allowedDirs` via `validatePath()`
+- ALL file paths must be resolved against the server's `allowedDirs` via `validatePath()` (`agent/src/security.ts`)
 - Agent tokens are unique per server, required for WebSocket auth, NEVER logged
 - File content is limited to 50 MB — always check size before reading
 - NEVER use shell commands (exec/spawn) for file operations — Node.js `fs` only
 - NEVER recursive delete (`rmSync({ recursive: true })`) — only files and empty dirs
-- See `.agents/skills/agent-security/SKILL.md` for the full `validatePath()` implementation
+- The agent's local UI server must bind to 127.0.0.1 only
 
 ## TESTING
 
-- Use any testing tools, libraries available to the project for testing your changes
-- Never assume your changes simply work, always test!
-- If the project does not have any testing tools, scripts, MCP tools, skills, etc. available for testing, ask the user whether testing should be skipped.
+- Never assume changes simply work — verify end-to-end (hub + agent + Postgres locally)
 
 ## UI DESIGN
 
-- Always follow the UI design system when creating or reviewing components or pages.
-- Use: @.agents/skills/design-taste-frontend, @.agents/skills/emil-design-eng, @.agents/skills/impeccable
 - When creating new components, first check if there is an existing component that can be used
-- CSS: Vanilla CSS only. No Tailwind. All tokens are in `apps/web/styles/globals.css`
+- CSS: Vanilla CSS only. No Tailwind. All tokens are in `hub/styles/globals.css`
 
 ---
 
@@ -57,87 +37,70 @@
 ## Project Overview
 
 Easy Access is a **self-hosted remote server/PC data management platform**.
-- Single admin, 2–5 connected machines, mixed LAN + internet topology
-- The admin can browse, upload, download, and preview files on remote machines via a web dashboard
-- Reference plan: `Plan.md` at the project root
+- Single admin, 2–5 connected machines
+- The admin browses, uploads, downloads, and previews files on remote machines via a web dashboard
+- Step-by-step setup: `DEPLOYMENT.md`
 
 ## Components
 
-1. **Central Hub** (`apps/web`) — Next.js 15 App Router full-stack app
-2. **Remote Agent** (`apps/agent`) — Node.js TypeScript service on each remote machine
-3. **Shared Package** (`packages/shared`) — Types, protocol, utilities shared by both
+1. **Hub** (`hub/`) — Next.js 15 App Router full-stack app, deployed to Railway (Root Directory = `hub`)
+2. **Agent** (`agent/`) — Node.js TypeScript service on each remote machine, with a local setup UI at http://localhost:4400
+3. **Shared code** — duplicated in `hub/shared/` (aliased `@easy-access/shared`) and `agent/src/shared/` (relative imports); keep both copies in sync when the protocol changes
 
 ## Architecture
 
 ```
-Browser → Next.js Hub → WebSocket Server → Agent → filesystem
+Browser → Next.js Hub → WebSocket Server (/ws) → Agent → filesystem
 ```
 
-- Monorepo: pnpm workspaces + Turborepo
+- Two standalone npm projects — no workspace/monorepo tooling
 - Agents connect **OUTBOUND** to the hub via WebSocket (wss://)
-- Hub exposed via port forwarding on admin's network
-- All file operations flow: Browser → Hub API → WebSocket → Agent → filesystem
 - Database: PostgreSQL via node-postgres (raw SQL, parameterized queries)
-- Auth: NextAuth.js v5 with Credentials provider (single admin)
+- Auth: NextAuth.js v5 with Credentials provider (single admin, seeded from ADMIN_USERNAME/ADMIN_PASSWORD env on boot)
+- Migrations + admin seeding run automatically on hub startup (`hub/lib/bootstrap.ts`)
+- The ConnectionManager and pg Pool are cached on `globalThis` unconditionally — required because the custom server (tsx) and Next-bundled API routes are separate module graphs. Do not remove.
 
 ## Code Standards
 
-- **TypeScript strict mode** in all 3 packages
+- **TypeScript strict mode** everywhere
 - **API responses**: `{ success: boolean, data?: T, error?: string }`
-- **WebSocket messages**: follow `packages/shared/src/protocol.ts` schema
+- **WebSocket messages**: follow the `WSMessage<T>` schema in `hub/shared/protocol.ts`
 - **Next.js**: Server components by default, client only when interactive
-- **CSS**: Vanilla CSS with design tokens in `apps/web/styles/globals.css`
-- **Imports**: Use `@/` alias for `apps/web/`, `@easy-access/shared` for shared package
+- **Imports**: `@/` alias for `hub/`, `@easy-access/shared` for shared code (hub only)
 
 ## Project Structure
 
 ```
 easy-access/
-├── apps/
-│   ├── web/                          # Next.js central hub
-│   │   ├── app/                      # App Router pages
-│   │   ├── components/               # React components
-│   │   ├── lib/
-│   │   │   ├── auth.ts               # NextAuth v5 config
-│   │   │   ├── db.ts                 # PostgreSQL pool (single pool)
-│   │   │   ├── ws-server.ts          # WebSocket server
-│   │   │   └── connection-manager.ts # Track connected agents
-│   │   ├── db/
-│   │   │   ├── schema.sql            # DDL — CREATE TABLE statements
-│   │   │   ├── queries.ts            # All typed query functions
-│   │   │   ├── migrate.ts            # Migration runner
-│   │   │   └── migrations/           # Numbered SQL migration files
-│   │   ├── styles/
-│   │   │   └── globals.css           # Design tokens + reset
-│   │   └── server.ts                 # Custom Next.js server (WebSocket)
-│   │
-│   └── agent/                        # Remote agent
-│       └── src/
-│           ├── index.ts              # Entry point
-│           ├── connection.ts         # WebSocket client → hub
-│           ├── file-ops.ts           # Secure file system operations
-│           ├── security.ts           # validatePath() — MANDATORY
-│           └── config.ts             # Agent config (~/.easy-access-agent/config.json)
+├── hub/                          # Next.js central hub (deploys to Railway)
+│   ├── app/                      # App Router pages + API routes
+│   ├── components/               # React components
+│   ├── lib/
+│   │   ├── auth.ts               # NextAuth v5 config
+│   │   ├── db.ts                 # PostgreSQL pool (single pool, global cache)
+│   │   ├── bootstrap.ts          # startup migrations + admin upsert
+│   │   ├── ws-server.ts          # WebSocket server (import ONLY from server.ts)
+│   │   └── connection-manager.ts # Track connected agents, pair requests
+│   ├── db/
+│   │   ├── queries.ts            # All typed query functions
+│   │   └── migrations/           # Numbered SQL migration files
+│   ├── shared/                   # Protocol/types/utils (copy A)
+│   ├── styles/globals.css        # Design tokens + reset
+│   ├── server.ts                 # Custom Next.js server (WebSocket upgrade)
+│   ├── railway.toml              # Railway build/deploy config
+│   └── .env.local.example        # Documented env vars (local + Railway)
 │
-└── packages/
-    └── shared/                       # Shared types and protocol
-        └── src/
-            ├── types.ts              # Server, File, Activity, Admin types
-            ├── protocol.ts           # WSMessage<T> and all message types
-            └── utils.ts              # formatBytes, getMimeType, etc.
+└── agent/                        # Remote agent (runs on user machines)
+    └── src/
+        ├── index.ts              # Entry point (starts UI + connection)
+        ├── manager.ts            # Connection lifecycle (config changes → reconnect)
+        ├── ui-server.ts          # Local setup/status UI on 127.0.0.1:4400
+        ├── connection.ts         # WebSocket client → hub
+        ├── file-ops.ts           # Secure file system operations
+        ├── security.ts           # validatePath() — MANDATORY
+        ├── config.ts             # ~/.easy-access-agent/config.json
+        └── shared/               # Protocol/types/utils (copy B)
 ```
-
-## Skills Available
-
-| Skill | Trigger | Purpose |
-|---|---|---|
-| `websocket-protocol` | WebSocket, ws server, agent connection, heartbeat | Full protocol spec + connection lifecycle |
-| `pg-patterns` | database, SQL, query, postgres, migration | Connection pool, query helpers, all CRUD patterns |
-| `agent-security` | file path, allowed dirs, agent token, path traversal | `validatePath()`, secure file ops, token validation |
-| `design-taste-frontend` | UI design, dashboard, components | Premium frontend aesthetics |
-| `impeccable` | redesign, audit, polish, UI | UI quality review |
-| `emil-design-eng` | animations, micro-interactions, motion | UI polish and motion |
-| `full-output-enforcement` | complete code, no truncation | Enforce complete output |
 
 ## File Operation Safety Pattern
 
@@ -160,21 +123,19 @@ Agent                          Hub
   |--- agent:file-list ---------->|
 ```
 
+Error responses (`agent:error` with a `requestId`) REJECT the hub's pending request — never resolve it.
+
 ## Running Commands
 
 ```bash
-# Install dependencies
-pnpm install
+# Hub (from hub/)
+npm install
+docker compose up -d      # local Postgres on port 5434
+npm run dev               # http://localhost:3000
+npm run build && npm run start   # production
+npm run type-check
 
-# Start hub (development)
-pnpm --filter @easy-access/web dev
-
-# Start agent (development)
-pnpm --filter @easy-access/agent dev
-
-# Run migrations
-npx ts-node --project apps/web/tsconfig.server.json apps/web/db/migrate.ts
-
-# Type check all packages
-pnpm type-check
+# Agent (from agent/)
+npm install
+npm start                 # UI at http://localhost:4400
 ```

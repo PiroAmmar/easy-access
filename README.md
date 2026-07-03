@@ -1,67 +1,64 @@
 # Easy Access
 
-Easy Access is a self-hosted remote file management platform. It allows a single administrator to securely browse, upload, download, and manage files across multiple remote machines through a centralized web dashboard.
+Access the files on your own computers from anywhere, through a private web dashboard.
 
-## Overview
+The project is split into two independent folders:
 
-The system consists of two parts:
-1. **Central Hub (`apps/web`)**: A Next.js application that provides the web UI and a WebSocket server.
-2. **Remote Agent (`apps/agent`)**: A lightweight Node.js service installed on target machines that connects *outbound* to the Hub.
+| Folder   | What it is | Where it runs |
+|----------|------------|---------------|
+| `hub/`   | The web dashboard (Next.js + PostgreSQL + WebSocket server) | **Railway** (or any Node host) |
+| `agent/` | A small service that shares selected folders with the hub | **Your computer** (the machine whose files you want to access) |
 
-Since the Agent connects outwardly via WebSockets, you **do not** need to open any incoming firewall ports on your remote machines.
+The agent connects **outbound** to the hub over WebSocket, so you never need to open ports or configure your home router.
 
----
-
-## Quick Start (Central Hub)
-
-You only need to run the Central Hub on **one** machine (or a cloud server).
-
-### Prerequisites
-- Node.js (v18+)
-- pnpm
-- Docker (for the PostgreSQL database)
-
-### Setup
-
-```bash
-# 1. Install dependencies
-pnpm install
-
-# 2. Start the database
-docker compose up -d
-
-# 3. Initialize the database and create the default admin account (admin / admin)
-pnpm --filter @easy-access/web migrate
-pnpm --filter @easy-access/web seed
-
-# 4. Start the Hub
-pnpm --filter @easy-access/web dev
+```
+Your browser ──HTTPS──▶ Hub (Railway) ◀──WSS── Agent (your PC) ──▶ your files
 ```
 
-The Hub is now running at `http://localhost:3000`. Log in with username `admin` and password `admin`.
+**👉 New here? Follow [DEPLOYMENT.md](DEPLOYMENT.md) for a step-by-step guide from zero to browsing your files.**
 
----
+## Quick reference
 
-## Connecting a Remote Machine
+### Hub — local development
 
-To manage files on another computer, you must install the Agent on it.
+```bash
+cd hub
+npm install
+docker compose up -d          # PostgreSQL on port 5434
+cp .env.local.example .env.local   # then edit values
+npm run dev                   # http://localhost:3000
+```
 
-1. **Get an Agent Token**: Log into your Hub dashboard, go to **Servers**, and click **Add Server**. Enter the directories you want to share and click Create. Copy the provided Agent Token.
-2. **Run the setup script on the remote machine**:
-   ```bash
-   npx ts-node apps/agent/src/index.ts setup
-   ```
-   *You will be prompted for your Hub URL (e.g., `ws://<hub-ip>:3000/ws`), your Agent Token, and the directories you want to share.*
-3. **Start the Agent**:
-   ```bash
-   pnpm --filter @easy-access/agent dev
-   ```
+Migrations and the admin account (from `ADMIN_USERNAME` / `ADMIN_PASSWORD`) are applied automatically on startup.
 
-The remote machine will now appear as **Online** in your Hub dashboard, and you can browse its files securely!
+### Hub — Railway
 
----
+1. Add a **PostgreSQL** database to your Railway project.
+2. Create a service from this repo with **Root Directory = `hub`**.
+3. Set variables: `DATABASE_URL` (reference the Postgres service), `AUTH_SECRET`, `AUTH_TRUST_HOST=true`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`.
+4. Generate a public domain. Done — the app migrates and seeds itself on boot.
 
-## Security
+See `hub/.env.local.example` for what every variable means.
 
-- **Path Traversal Protection**: The agent rigorously checks all incoming paths against the configured `allowedDirs`. Any attempts to access files outside these directories (e.g., via `../`) are actively blocked.
-- **Single Administrator**: The dashboard is restricted to authenticated users only. Ensure you change the default password in production.
+### Agent — on each computer you want to access
+
+```bash
+cd agent
+npm install
+npm start
+```
+
+Then open **http://localhost:4400** in your browser and fill in:
+- **Hub WebSocket URL** — `wss://<your-hub-domain>/ws`
+- **Agent Token** — created in the hub dashboard (Servers → Add Server)
+- **Shared folders** — the only folders the hub will be able to access
+
+The page shows live connection status and logs. Settings are stored in `~/.easy-access-agent/config.json` (you never need to edit it by hand).
+
+## Security model
+
+- Single admin account; every API route requires a session.
+- Each agent has a unique 256-bit token; the hub rejects unknown tokens.
+- The agent only serves paths inside its configured shared folders (`validatePath` — no `../` traversal, symlinks resolved, case-insensitive on Windows).
+- No shell execution, no recursive deletes, 50 MB per-file limit.
+- The agent's setup UI binds to `127.0.0.1` only.
