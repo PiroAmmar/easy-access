@@ -1,0 +1,9 @@
+﻿[build]
+buildCommand = "next build"
+
+[deploy]
+startCommand = "tsx server.ts"
+healthcheckPath = "/"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
