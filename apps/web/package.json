@@ -10,7 +10,8 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "seed": "tsx db/seed.ts",
-    "migrate": "tsx db/migrate.ts"
+    "migrate": "tsx db/migrate.ts",
+    "create-admin": "tsx db/create-admin.ts"
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.7.4",
