@@ -1,9 +1,7 @@
-[build]
+﻿[build]
 buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @easy-access/web build"
 
 [deploy]
 startCommand = "pnpm --filter @easy-access/web start"
-healthcheckPath = "/"
-healthcheckTimeout = 60
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
