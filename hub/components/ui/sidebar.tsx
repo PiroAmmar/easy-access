@@ -100,7 +100,10 @@ export default function Sidebar({ userName }: SidebarProps) {
           </div>
           <button
             className="topbar-btn"
-            onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
+            onClick={async () => {
+              await signOut({ redirect: false });
+              window.location.href = '/login';
+            }}
             title="Sign out"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
