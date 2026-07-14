@@ -9,6 +9,32 @@ import path from 'path';
 import bcrypt from 'bcryptjs';
 import pool from './db';
 
+/**
+ * Wait for Postgres to accept connections before running migrations.
+ * Railway doesn't guarantee the DB service is ready before this one boots
+ * (and the DB may briefly be unreachable during its own crash-recovery),
+ * so a single 5s-timeout connect attempt isn't reliable at cold start.
+ */
+async function waitForDb(retries = 10, delayMs = 3_000): Promise<void> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const client = await pool.connect();
+      client.release();
+      return;
+    } catch (err) {
+      if (attempt === retries) {
+        throw new Error(
+          `Could not reach database after ${retries} attempts: ${(err as Error).message}`
+        );
+      }
+      console.warn(
+        `[DB] Connect attempt ${attempt}/${retries} failed (${(err as Error).message}), retrying in ${delayMs}ms...`
+      );
+      await new Promise((res) => setTimeout(res, delayMs));
+    }
+  }
+}
+
 export async function runMigrations(): Promise<void> {
   const client = await pool.connect();
   try {
@@ -72,7 +98,7 @@ export async function ensureAdmin(): Promise<void> {
   if (!process.env.ADMIN_PASSWORD) {
     console.warn(
       '[Admin] ADMIN_PASSWORD is not set — using default password "admin". ' +
-        'Set ADMIN_USERNAME and ADMIN_PASSWORD env vars before exposing this hub to the internet!'
+      'Set ADMIN_USERNAME and ADMIN_PASSWORD env vars before exposing this hub to the internet!'
     );
   }
 
@@ -107,9 +133,10 @@ export async function bootstrap(): Promise<void> {
   if (!process.env.DATABASE_URL) {
     throw new Error(
       'DATABASE_URL is not set. Locally: copy .env.local.example to .env.local. ' +
-        'On Railway: add a PostgreSQL database and reference its DATABASE_URL variable.'
+      'On Railway: add a PostgreSQL database and reference its DATABASE_URL variable.'
     );
   }
+  await waitForDb();
   await runMigrations();
   await ensureAdmin();
 }
