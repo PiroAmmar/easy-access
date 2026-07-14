@@ -68,7 +68,7 @@ Click the Hub service → **Variables** tab → add these five variables:
 | `ADMIN_USERNAME` | e.g. `admin` | The username you'll log in with. |
 | `ADMIN_PASSWORD` | a strong password | The password you'll log in with. The account is created automatically on first start. |
 
-To generate a good `AUTH_SECRET`, run this in a terminal and copy the output:
+To generate a good `AUTH_SECRET`, run this in a terminal and copy the output: 'L8aenreG7I2I+6+SOIVDK2HmDd85yh161On9plTNtl8='
 
 ```bash
 openssl rand -base64 32
@@ -87,7 +87,7 @@ openssl rand -base64 32
 3. You'll get an address like:
 
    ```
-   https://easy-access-production-a1b2.up.railway.app
+   easier-access.up.railway.app
    ```
 
    Write it down — this is your dashboard address, and you'll need it for the agent too.
