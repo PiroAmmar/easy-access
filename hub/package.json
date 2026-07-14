@@ -9,7 +9,8 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "migrate": "tsx db/migrate.ts",
-    "seed": "tsx db/seed.ts"
+    "seed": "tsx db/seed.ts",
+    "create-admin": "tsx db/create-admin.ts"
   },
   "dependencies": {
     "@next/env": "^15.1.3",
