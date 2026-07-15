@@ -25,8 +25,11 @@ export default function Modal({ open, onClose, title, children, maxWidth = '480p
       const content = document.querySelector('.dashboard-content');
       if (content) {
         const rect = content.getBoundingClientRect();
-        setCenterX(`${rect.left + rect.width / 2}px`);
+        const x = rect.left + rect.width / 2;
+        console.log('[Modal centering] .dashboard-content rect:', rect, '→ centerX:', x);
+        setCenterX(`${x}px`);
       } else {
+        console.log('[Modal centering] .dashboard-content NOT FOUND — falling back to 50vw');
         setCenterX('50vw');
       }
     };
