@@ -696,6 +696,17 @@ code, pre, kbd {
   transform: translate(-50%, -50%);
 }
 
+/* On desktop the sidebar (248px) is a real grid column, not an overlay,
+   so centering on the full viewport leaves the modal visually off-center
+   relative to the dashboard content area to the right of it. Shift right
+   by half the sidebar width to center within that content area instead.
+   Matches the dashboard-layout desktop/mobile breakpoint in dashboard.css. */
+@media (min-width: 769px) {
+  .modal-dialog {
+    left: calc(50% + 124px);
+  }
+}
+
 .modal-dialog::backdrop {
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(4px);
