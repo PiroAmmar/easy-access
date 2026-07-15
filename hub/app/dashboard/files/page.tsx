@@ -114,12 +114,23 @@ export default function FileBrowserPage() {
     navigateTo(currentPath);
   };
 
-  // Close context menu on click outside
+  // Close context menu on click outside.
+  // We use mousedown on the capture phase so we detect clicks on the menu itself
+  // and can skip them, without racing against the kebab button's own click.
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    window.addEventListener('click', close);
-    return () => window.removeEventListener('click', close);
+    // Skip the very first mousedown that opened the menu (it fires before we register)
+    let armed = false;
+    const onMouseDown = (e: MouseEvent) => {
+      if (!armed) { armed = true; return; }
+      const target = e.target as Node;
+      // Find the context menu element and check if click is inside it
+      const menuEl = document.querySelector('.context-menu');
+      if (menuEl && menuEl.contains(target)) return;
+      setContextMenu(null);
+    };
+    window.addEventListener('mousedown', onMouseDown, true); // capture phase
+    return () => window.removeEventListener('mousedown', onMouseDown, true);
   }, [contextMenu]);
 
   // Breadcrumbs
