@@ -6,9 +6,11 @@ import { signOut } from 'next-auth/react';
 
 interface SidebarProps {
   userName?: string | null;
+  open?: boolean;
+  onNavigate?: () => void;
 }
 
-export default function Sidebar({ userName }: SidebarProps) {
+export default function Sidebar({ userName, open, onNavigate }: SidebarProps) {
   const pathname = usePathname();
 
   const navItems = [
@@ -62,7 +64,7 @@ export default function Sidebar({ userName }: SidebarProps) {
   };
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-brand">
         <div className="sidebar-brand-icon">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -81,6 +83,7 @@ export default function Sidebar({ userName }: SidebarProps) {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onNavigate}
             className={`sidebar-link ${isActive(item.href) ? 'active' : ''}`}
           >
             <span className="sidebar-link-icon">{item.icon}</span>

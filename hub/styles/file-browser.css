@@ -80,8 +80,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border: none;
   background: transparent;
   color: var(--text-tertiary);
@@ -168,8 +168,16 @@
 
 /* ─── File List (Table View) ──────────────────────────────── */
 
+.file-list-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .file-list {
   width: 100%;
+  min-width: 480px;
+  /* forces horizontal scroll instead of illegible squished columns below this width */
   border-collapse: collapse;
 }
 
@@ -218,6 +226,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  overflow-wrap: anywhere;
 }
 
 .file-list-name-icon {
@@ -226,8 +235,41 @@
   flex-shrink: 0;
 }
 
-.file-list-name-icon.folder { color: var(--color-warning); }
-.file-list-name-icon.file { color: var(--text-tertiary); }
+.file-list-name-icon.folder {
+  color: var(--color-warning);
+}
+
+.file-list-name-icon.file {
+  color: var(--text-tertiary);
+}
+
+/* ─── Row/Card Actions Button (touch-accessible alternative to right-click) ── */
+
+.file-card-actions-btn {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.file-list td .file-card-actions-btn {
+  position: static;
+  margin: 0 auto;
+}
+
+.file-card-actions-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
 
 /* ─── Context Menu ────────────────────────────────────────── */
 

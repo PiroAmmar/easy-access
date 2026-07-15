@@ -50,9 +50,17 @@ export default function FileBrowserPage() {
     navigateTo(parent);
   }, [currentPath, serverId, router, navigateTo]);
 
+  const MENU_W = 200;
+  const MENU_H = 150;
+  const clampMenuPos = (x: number, y: number) => ({
+    x: Math.min(x, window.innerWidth - MENU_W - 8),
+    y: Math.min(y, window.innerHeight - MENU_H - 8),
+  });
+
   const handleContextMenu = (e: React.MouseEvent, path: string, type: string) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, path, type });
+    const { x, y } = clampMenuPos(e.clientX, e.clientY);
+    setContextMenu({ x, y, path, type });
   };
 
   const handleDownload = async (path: string) => {
@@ -226,6 +234,20 @@ export default function FileBrowserPage() {
               onClick={() => handleNavigate(entry.path, entry.type)}
               onContextMenu={(e) => handleContextMenu(e, entry.path, entry.type)}
             >
+              <button
+                className="file-card-actions-btn"
+                aria-label={`Actions for ${entry.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pos = clampMenuPos(rect.right, rect.bottom);
+                  setContextMenu({ x: pos.x, y: pos.y, path: entry.path, type: entry.type });
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <circle cx="8" cy="3.5" r="1.3" /><circle cx="8" cy="8" r="1.3" /><circle cx="8" cy="12.5" r="1.3" />
+                </svg>
+              </button>
               <div className={`file-card-icon ${entry.type === 'directory' ? 'folder' : 'file'}`}>
                 <FileIcon type={entry.type} extension={entry.extension} size={32} />
               </div>
@@ -237,44 +259,63 @@ export default function FileBrowserPage() {
           ))}
         </div>
       ) : (
-        <table className="file-list">
-          <thead>
-            <tr>
-              <th style={{ width: '50%' }}>Name</th>
-              <th>Size</th>
-              <th>Modified</th>
-              <th style={{ width: 60 }}>Type</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((entry) => (
-              <tr
-                key={entry.path}
-                className={selectedEntries.has(entry.path) ? 'selected' : ''}
-                onClick={() => handleNavigate(entry.path, entry.type)}
-                onContextMenu={(e) => handleContextMenu(e, entry.path, entry.type)}
-              >
-                <td>
-                  <div className="file-list-name">
-                    <span className={`file-list-name-icon ${entry.type === 'directory' ? 'folder' : 'file'}`}>
-                      <FileIcon type={entry.type} extension={entry.extension} size={18} />
-                    </span>
-                    {entry.name}
-                  </div>
-                </td>
-                <td style={{ color: 'var(--text-tertiary)' }}>
-                  {entry.type === 'directory' ? '—' : formatBytes(entry.size)}
-                </td>
-                <td style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)' }}>
-                  {entry.modifiedAt ? new Date(entry.modifiedAt).toLocaleString() : '—'}
-                </td>
-                <td style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)' }}>
-                  {entry.type === 'directory' ? 'Folder' : entry.extension || 'File'}
-                </td>
+        <div className="file-list-wrap">
+          <table className="file-list">
+            <thead>
+              <tr>
+                <th style={{ width: '50%' }}>Name</th>
+                <th>Size</th>
+                <th>Modified</th>
+                <th style={{ width: 60 }}>Type</th>
+                <th style={{ width: 40 }} aria-label="Actions" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sorted.map((entry) => (
+                <tr
+                  key={entry.path}
+                  className={selectedEntries.has(entry.path) ? 'selected' : ''}
+                  onClick={() => handleNavigate(entry.path, entry.type)}
+                  onContextMenu={(e) => handleContextMenu(e, entry.path, entry.type)}
+                >
+                  <td>
+                    <div className="file-list-name">
+                      <span className={`file-list-name-icon ${entry.type === 'directory' ? 'folder' : 'file'}`}>
+                        <FileIcon type={entry.type} extension={entry.extension} size={18} />
+                      </span>
+                      {entry.name}
+                    </div>
+                  </td>
+                  <td style={{ color: 'var(--text-tertiary)' }}>
+                    {entry.type === 'directory' ? '—' : formatBytes(entry.size)}
+                  </td>
+                  <td style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)' }}>
+                    {entry.modifiedAt ? new Date(entry.modifiedAt).toLocaleString() : '—'}
+                  </td>
+                  <td style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)' }}>
+                    {entry.type === 'directory' ? 'Folder' : entry.extension || 'File'}
+                  </td>
+                  <td>
+                    <button
+                      className="file-card-actions-btn"
+                      aria-label={`Actions for ${entry.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const pos = clampMenuPos(rect.right, rect.bottom);
+                        setContextMenu({ x: pos.x, y: pos.y, path: entry.path, type: entry.type });
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                        <circle cx="8" cy="3.5" r="1.3" /><circle cx="8" cy="8" r="1.3" /><circle cx="8" cy="12.5" r="1.3" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Context Menu */}
