@@ -37,8 +37,12 @@ function b64ToBuffer(b64: string): ArrayBuffer {
   return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 }
 function uint8ToB64(u8: Uint8Array): string {
+  // Process in 8 KB chunks to avoid call-stack overflow with btoa on large files
+  const CHUNK = 8192;
   let bin = '';
-  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+  for (let i = 0; i < u8.length; i += CHUNK) {
+    bin += String.fromCharCode(...u8.subarray(i, i + CHUNK));
+  }
   return btoa(bin);
 }
 function xmlEscape(s: string): string {
@@ -413,8 +417,9 @@ export default function PreviewPage() {
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       XLSX.utils.book_append_sheet(wb, ws, sheet.name);
     }
-    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
-    await doSave(uint8ToB64(out));
+    // XLSX.write with type:'array' returns a plain number[], not Uint8Array
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as number[];
+    await doSave(uint8ToB64(new Uint8Array(out)));
     setXlEditing(false);
   }, [xlEditSheets, doSave]);
 

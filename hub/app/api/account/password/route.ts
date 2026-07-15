@@ -38,6 +38,15 @@ export async function PATCH(req: NextRequest): Promise<NextResponse<ApiResponse<
       );
     }
 
+    // Prevent a no-op password change (new == current)
+    const sameAsOld = await bcrypt.compare(newPassword, account.passwordHash);
+    if (sameAsOld) {
+      return NextResponse.json(
+        { success: false, error: 'New password must be different from your current password' },
+        { status: 400 }
+      );
+    }
+
     const newHash = await bcrypt.hash(newPassword, 12);
     await updateAccountPassword(account.id, newHash);
 

@@ -22,6 +22,8 @@ export default function FileBrowserPage() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; path: string; type: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'folder' | 'doc' | 'image' | 'video' | 'audio' | 'code' | 'archive'>('all');
 
   useEffect(() => {
     if (serverId) setServer(serverId, pathParam);
@@ -144,6 +146,25 @@ export default function FileBrowserPage() {
     return a.name.localeCompare(b.name);
   });
 
+  // File type buckets for filtering
+  const FILTER_EXTS: Record<string, string[]> = {
+    doc:     ['.pdf','.doc','.docx','.odt','.rtf','.txt','.md','.xlsx','.xls','.csv','.pptx','.ppt'],
+    image:   ['.jpg','.jpeg','.png','.gif','.svg','.webp','.bmp','.ico'],
+    video:   ['.mp4','.webm','.mov','.avi','.mkv','.m4v'],
+    audio:   ['.mp3','.ogg','.wav','.flac','.aac','.m4a'],
+    code:    ['.ts','.tsx','.js','.jsx','.py','.go','.rs','.java','.c','.cpp','.h','.css','.html','.json','.yaml','.yml','.toml','.xml','.sh','.bat','.ps1','.sql'],
+    archive: ['.zip','.jar','.tar','.gz','.7z','.rar'],
+  };
+
+  const filtered = sorted.filter((entry) => {
+    // Search filter
+    if (search && !entry.name.toLowerCase().includes(search.toLowerCase())) return false;
+    // Type filter
+    if (filterType === 'all') return true;
+    if (filterType === 'folder') return entry.type === 'directory';
+    return FILTER_EXTS[filterType]?.includes(entry.extension || '') ?? false;
+  });
+
   if (!serverId) {
     return (
       <div className="empty-state">
@@ -194,8 +215,8 @@ export default function FileBrowserPage() {
               );
             })}
           </div>
-        </div>
-        <div className="file-browser-toolbar-right">
+      </div>
+      <div className="file-browser-toolbar-right">
           <div className="view-toggle">
             <button className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')} title="Grid view">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -212,6 +233,35 @@ export default function FileBrowserPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Search + filter bar */}
+      <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
+        {/* Search */}
+        <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }}>
+            <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M15 15L13 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search files…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: '100%', paddingLeft: 32, paddingRight: 'var(--space-3)', paddingTop: 'var(--space-2)', paddingBottom: 'var(--space-2)', background: 'var(--surface-card)', border: '1px solid var(--surface-border)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: 'var(--text-sm)', outline: 'none' }}
+          />
+        </div>
+        {/* Type filter chips */}
+        {(['all','folder','doc','image','video','audio','code','archive'] as const).map((t) => (
+          <button key={t}
+            onClick={() => setFilterType(t)}
+            style={{ padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 'var(--font-medium)', border: '1px solid', cursor: 'pointer', whiteSpace: 'nowrap', background: filterType === t ? 'var(--interactive-brand-bg)' : 'transparent', borderColor: filterType === t ? 'var(--color-brand-400)' : 'var(--surface-border)', color: filterType === t ? 'var(--color-brand-300)' : 'var(--text-tertiary)', transition: 'all 0.15s' }}>
+            {t === 'all' ? 'All' : t === 'folder' ? 'Folders' : t === 'doc' ? 'Docs' : t === 'image' ? 'Images' : t === 'video' ? 'Video' : t === 'audio' ? 'Audio' : t === 'code' ? 'Code' : 'Archives'}
+          </button>
+        ))}
+        {(search || filterType !== 'all') && (
+          <button onClick={() => { setSearch(''); setFilterType('all'); }} style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}>✕ Clear</button>
+        )}
       </div>
 
       {error && <div className="auth-error" style={{ marginBottom: 'var(--space-4)' }}>{error}</div>}
@@ -236,9 +286,13 @@ export default function FileBrowserPage() {
           </svg>
           <div>This directory is empty. Drop files here to upload.</div>
         </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>
+          No files match your search or filter.
+        </div>
       ) : viewMode === 'grid' ? (
         <div className="file-grid">
-          {sorted.map((entry) => (
+          {filtered.map((entry) => (
             <div
               key={entry.path}
               className={`file-card ${selectedEntries.has(entry.path) ? 'selected' : ''}`}

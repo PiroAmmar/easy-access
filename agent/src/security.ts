@@ -63,9 +63,20 @@ export function validatePath(requestedPath: string, allowedDirs: string[]): stri
   const target = fold(realPath);
 
   const isAllowed = allowedDirs.some((dir) => {
-    const normalizedDir = fold(path.normalize(path.resolve(dir)));
-    // Ensure path starts with dir AND is either equal OR starts with dir + separator
-    // Prevents "C:\data2" from matching "C:\data"
+    // Resolve and normalise the allowed directory
+    let normalizedDir = fold(path.normalize(path.resolve(dir)));
+
+    // Windows drive roots (e.g. "E:\") already end with a separator.
+    // Strip ONE trailing separator so that the startsWith check below works
+    // uniformly for both drive roots and regular directories.
+    // Without this, "E:\Documents" fails the check because:
+    //   normalizedDir          = "e:\"
+    //   normalizedDir + sep    = "e:\\"
+    //   target                 = "e:\documents"  ← doesn't start with "e:\\"
+    if (normalizedDir.endsWith(path.sep) && normalizedDir.length > path.sep.length) {
+      normalizedDir = normalizedDir.slice(0, -1);
+    }
+
     return (
       target === normalizedDir ||
       target.startsWith(normalizedDir + path.sep)
