@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 interface ModalProps {
   open: boolean;
@@ -12,6 +12,29 @@ interface ModalProps {
 
 export default function Modal({ open, onClose, title, children, maxWidth = '480px' }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  // Horizontal center point (px from viewport left) the modal should sit on.
+  // Defaults to plain viewport center until measured, then locks onto the
+  // actual visible content area so it centers correctly regardless of
+  // sidebar width, window size, DevTools, or breakpoint.
+  const [centerX, setCenterX] = useState<string>('50vw');
+
+  useEffect(() => {
+    if (!open) return;
+
+    const recalc = () => {
+      const content = document.querySelector('.dashboard-content');
+      if (content) {
+        const rect = content.getBoundingClientRect();
+        setCenterX(`${rect.left + rect.width / 2}px`);
+      } else {
+        setCenterX('50vw');
+      }
+    };
+
+    recalc();
+    window.addEventListener('resize', recalc);
+    return () => window.removeEventListener('resize', recalc);
+  }, [open]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -42,7 +65,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = '480p
       className="modal-dialog"
       onClick={handleBackdrop}
       onKeyDown={handleKeyDown}
-      style={{ maxWidth }}
+      style={{ maxWidth, left: centerX }}
     >
       <div className="modal-content">
         <div className="modal-header">
