@@ -231,9 +231,30 @@ export async function getServerActivities(
 }
 
 /**
- * Get all recent activity across all servers (joined with server name).
+ * Get recent activity. Regular users only see activity for servers they
+ * own; admins see everything. Pass isAdmin=true to bypass the ownership
+ * filter (callers must have already checked the requester's role).
  */
-export async function getAllActivities(limit = 200): Promise<Activity[]> {
+export async function getAllActivities(
+  limit = 200,
+  adminId?: string,
+  isAdmin = false
+): Promise<Activity[]> {
+  if (isAdmin || !adminId) {
+    return query<Activity>(
+      `SELECT a.id, a.type, a.path,
+              a.server_id AS "serverId",
+              a.details,
+              a.created_at AS "createdAt",
+              s.name AS "serverName"
+       FROM activities a
+       JOIN servers s ON s.id = a.server_id
+       ORDER BY a.created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+  }
+
   return query<Activity>(
     `SELECT a.id, a.type, a.path,
             a.server_id AS "serverId",
@@ -242,42 +263,76 @@ export async function getAllActivities(limit = 200): Promise<Activity[]> {
             s.name AS "serverName"
      FROM activities a
      JOIN servers s ON s.id = a.server_id
+     WHERE s.admin_id = $2
      ORDER BY a.created_at DESC
      LIMIT $1`,
-    [limit]
+    [limit, adminId]
   );
 }
 
-// ─── Admin Queries ─────────────────────────────────────────────────────────────
+// ─── Admin / User Queries ──────────────────────────────────────────────────────
 
 /**
- * Find an admin by username — used during login credential check.
+ * Find an admin/user by username — used during login credential check.
  */
 export async function getAdminByUsername(username: string): Promise<Admin | null> {
   return queryOne<Admin>(
     `SELECT id, username,
             password_hash AS "passwordHash",
+            role,
             created_at    AS "createdAt"
      FROM admins WHERE LOWER(username) = LOWER($1)`,
     [username]
   );
 }
 
+export async function getAdminById(id: string): Promise<Admin | null> {
+  return queryOne<Admin>(
+    `SELECT id, username,
+            password_hash AS "passwordHash",
+            role,
+            created_at    AS "createdAt"
+     FROM admins WHERE id = $1`,
+    [id]
+  );
+}
+
 /**
- * Create the initial admin account. Run once during setup.
+ * List all accounts (admins and users). Admin-only — callers must check role.
+ */
+export async function getAllAccounts(): Promise<Omit<Admin, 'passwordHash'>[]> {
+  return query<Omit<Admin, 'passwordHash'>>(
+    `SELECT id, username, role, created_at AS "createdAt"
+     FROM admins ORDER BY created_at ASC`
+  );
+}
+
+/**
+ * Create an account. Run once during setup for the initial admin,
+ * and from the Users page for any additional admins/users.
  * The passwordHash must be pre-hashed with bcrypt before calling this.
  */
 export async function createAdmin(
   username: string,
-  passwordHash: string
+  passwordHash: string,
+  role: 'admin' | 'user' = 'admin'
 ): Promise<Admin> {
   const [admin] = await query<Admin>(
-    `INSERT INTO admins (username, password_hash)
-     VALUES ($1, $2)
+    `INSERT INTO admins (username, password_hash, role)
+     VALUES ($1, $2, $3)
      RETURNING id, username,
                password_hash AS "passwordHash",
+               role,
                created_at    AS "createdAt"`,
-    [username, passwordHash]
+    [username, passwordHash, role]
   );
   return admin;
+}
+
+export async function updateAccountPassword(id: string, passwordHash: string): Promise<void> {
+  await execute('UPDATE admins SET password_hash = $1 WHERE id = $2', [passwordHash, id]);
+}
+
+export async function deleteAccount(id: string): Promise<number> {
+  return execute('DELETE FROM admins WHERE id = $1', [id]);
 }

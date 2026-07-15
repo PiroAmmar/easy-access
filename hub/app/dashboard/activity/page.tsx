@@ -1,4 +1,5 @@
 import { getAllActivities } from '@/db/queries';
+import { auth } from '@/lib/auth';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
@@ -6,14 +7,19 @@ export const metadata: Metadata = { title: 'Activity' };
 export const dynamic = 'force-dynamic';
 
 export default async function ActivityPage() {
-  const activities = await getAllActivities(100);
+  const session = await auth();
+  const adminId = session?.user?.id;
+  const isAdmin = session?.user?.role === 'admin';
+  const activities = await getAllActivities(100, adminId, isAdmin);
 
   return (
     <>
       <div className="page-header">
         <div className="page-header-left">
           <h1 className="page-title">Activity</h1>
-          <p className="page-subtitle">Recent file operations across all servers</p>
+          <p className="page-subtitle">
+            {isAdmin ? 'Recent file operations across all servers' : 'Recent file operations on your servers'}
+          </p>
         </div>
       </div>
 
@@ -28,7 +34,8 @@ export default async function ActivityPage() {
           <div className="empty-state-text">File operations (reads, writes, deletes) will appear here.</div>
         </div>
       ) : (
-        <table className="file-list">
+        <div style={{ width: '100%', overflowX: 'auto' }}>
+        <table className="file-list" style={{ minWidth: 480 }}>
           <thead>
             <tr>
               <th>Type</th>
@@ -64,6 +71,7 @@ export default async function ActivityPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </>
   );

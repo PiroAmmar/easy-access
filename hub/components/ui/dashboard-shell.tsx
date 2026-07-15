@@ -6,6 +6,7 @@ import Sidebar from './sidebar';
 
 interface DashboardShellProps {
   userName?: string | null;
+  role?: string | null;
   children: React.ReactNode;
 }
 
@@ -14,6 +15,8 @@ const breadcrumbMap: Record<string, string> = {
   '/dashboard/servers': 'Servers',
   '/dashboard/files': 'Files',
   '/dashboard/activity': 'Activity',
+  '/dashboard/users': 'Users',
+  '/dashboard/account': 'Account',
 };
 
 function getBreadcrumb(pathname: string): { parent?: string; current: string } {
@@ -35,7 +38,7 @@ function getBreadcrumb(pathname: string): { parent?: string; current: string } {
   return { current: 'Dashboard' };
 }
 
-export default function DashboardShell({ userName, children }: DashboardShellProps) {
+export default function DashboardShell({ userName, role, children }: DashboardShellProps) {
   const pathname = usePathname();
   const { parent, current } = getBreadcrumb(pathname);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -53,7 +56,7 @@ export default function DashboardShell({ userName, children }: DashboardShellPro
 
   return (
     <div className="dashboard-layout">
-      <Sidebar userName={userName} open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
+      <Sidebar userName={userName} role={role} open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
       <div
         className={`sidebar-backdrop${sidebarOpen ? ' open' : ''}`}
         onClick={() => setSidebarOpen(false)}

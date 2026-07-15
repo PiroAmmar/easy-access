@@ -81,6 +81,13 @@ export async function PUT(
     );
 
     const updated = await getServerById(id, adminId);
+
+    if (Array.isArray(body.allowedDirs) && updated) {
+      connectionManager.push(id, 'hub:allowed-dirs-update', {
+        allowedDirs: updated.allowedDirs,
+      });
+    }
+
     return NextResponse.json({ success: true, data: updated! });
   } catch (err) {
     console.error('[API] PUT /api/servers/[id] error:', err);

@@ -6,12 +6,14 @@ import { signOut } from 'next-auth/react';
 
 interface SidebarProps {
   userName?: string | null;
+  role?: string | null;
   open?: boolean;
   onNavigate?: () => void;
 }
 
-export default function Sidebar({ userName, open, onNavigate }: SidebarProps) {
+export default function Sidebar({ userName, role, open, onNavigate }: SidebarProps) {
   const pathname = usePathname();
+  const isAdmin = role === 'admin';
 
   const navItems = [
     {
@@ -56,6 +58,22 @@ export default function Sidebar({ userName, open, onNavigate }: SidebarProps) {
         </svg>
       ),
     },
+    ...(isAdmin
+      ? [
+          {
+            label: 'Users',
+            href: '/dashboard/users',
+            icon: (
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                <circle cx="7" cy="6.5" r="3" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M2 17c0-3 2.5-5 5-5s5 2 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="14.5" cy="7.5" r="2.25" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M12.5 12c2 .2 3.7 1.7 3.9 4.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const isActive = (href: string) => {
@@ -98,9 +116,20 @@ export default function Sidebar({ userName, open, onNavigate }: SidebarProps) {
             {(userName ?? 'A').charAt(0).toUpperCase()}
           </div>
           <div className="sidebar-user-info">
-            <div className="sidebar-user-name">{userName ?? 'Admin'}</div>
-            <div className="sidebar-user-role">Administrator</div>
+            <div className="sidebar-user-name">{userName ?? 'Account'}</div>
+            <div className="sidebar-user-role">{isAdmin ? 'Administrator' : 'User'}</div>
           </div>
+          <Link
+            href="/dashboard/account"
+            onClick={onNavigate}
+            className="topbar-btn"
+            title="Change password"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <rect x="3.5" y="7" width="9" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M5.5 7V4.75C5.5 3.23122 6.73122 2 8.25 2C9.76878 2 11 3.23122 11 4.75V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </Link>
           <button
             className="topbar-btn"
             onClick={async () => {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Modal from '@/components/ui/modal';
 
 interface Server {
   id: string;
@@ -28,6 +29,10 @@ export default function ServerDetailClient({ serverId }: { serverId: string }) {
   const [loading, setLoading] = useState(true);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [tokenVisible, setTokenVisible] = useState(false);
+  const [editDirsOpen, setEditDirsOpen] = useState(false);
+  const [editDirsText, setEditDirsText] = useState('');
+  const [editDirsSaving, setEditDirsSaving] = useState(false);
+  const [editDirsError, setEditDirsError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -47,6 +52,40 @@ export default function ServerDetailClient({ serverId }: { serverId: string }) {
   };
 
   useEffect(() => { load(); }, [serverId]);
+
+  const openEditDirs = () => {
+    setEditDirsText((server?.allowedDirs ?? []).join('\n'));
+    setEditDirsError(null);
+    setEditDirsOpen(true);
+  };
+
+  const saveEditDirs = async () => {
+    setEditDirsSaving(true);
+    setEditDirsError(null);
+    const allowedDirs = editDirsText
+      .split('\n')
+      .map((d) => d.trim())
+      .filter(Boolean);
+
+    try {
+      const res = await fetch(`/api/servers/${serverId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowedDirs }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setEditDirsError(data.error ?? 'Failed to update directories');
+        return;
+      }
+      setServer(data.data);
+      setEditDirsOpen(false);
+    } catch {
+      setEditDirsError('Failed to update directories');
+    } finally {
+      setEditDirsSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -206,6 +245,7 @@ export default function ServerDetailClient({ serverId }: { serverId: string }) {
       <div className="section">
         <div className="section-header">
           <h2 className="section-title">Allowed Directories</h2>
+          <button className="btn btn-ghost btn-sm" onClick={openEditDirs}>Edit</button>
         </div>
 
         <div className="item-list">
@@ -213,7 +253,7 @@ export default function ServerDetailClient({ serverId }: { serverId: string }) {
             <div className="empty-state" style={{ padding: 'var(--space-6)' }}>
               <div className="empty-state-title">No directories configured</div>
               <div className="empty-state-text">
-                Update your agent&apos;s config at <code>http://localhost:4400</code> on the remote machine and restart the agent.
+                The agent can&apos;t access anything until you add at least one directory here.
               </div>
             </div>
           ) : (
@@ -230,9 +270,38 @@ export default function ServerDetailClient({ serverId }: { serverId: string }) {
           )}
         </div>
         <div style={{ marginTop: 'var(--space-3)', fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
-          🔒 To modify allowed directories, update the Shared Folders in the agent setup UI (<code>http://localhost:4400</code>) and reconnect.
+          🔒 Enforced by the hub — changes here apply immediately, even to an already-connected agent.
         </div>
       </div>
+
+      <Modal
+        open={editDirsOpen}
+        onClose={() => setEditDirsOpen(false)}
+        title="Edit Allowed Directories"
+        maxWidth="480px"
+      >
+        <div className="form-group">
+          <label className="form-label">Directories (one per line)</label>
+          <textarea
+            className="form-textarea"
+            rows={6}
+            value={editDirsText}
+            onChange={(e) => setEditDirsText(e.target.value)}
+            placeholder={'C:\\Users\\YourName\\Documents\nD:\\Projects'}
+          />
+        </div>
+        {editDirsError && (
+          <div style={{ color: 'var(--color-danger)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-3)' }}>
+            {editDirsError}
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)' }}>
+          <button className="btn btn-secondary" onClick={() => setEditDirsOpen(false)}>Cancel</button>
+          <button className="btn btn-primary" onClick={saveEditDirs} disabled={editDirsSaving}>
+            {editDirsSaving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </Modal>
 
       {/* Activity */}
       <div className="section">

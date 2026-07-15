@@ -13,10 +13,11 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage() {
   const session = await auth();
   const adminId = session?.user?.id ?? '';
+  const isAdmin = session?.user?.role === 'admin';
 
   const [servers, activities] = await Promise.all([
     getAllServers(adminId),
-    getAllActivities(10),
+    getAllActivities(10, adminId, isAdmin),
   ]);
 
   const onlineIds = connectionManager.getOnlineServerIds();

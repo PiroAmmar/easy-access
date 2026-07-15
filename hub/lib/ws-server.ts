@@ -7,7 +7,7 @@ import type { Server as HttpServer } from 'http';
 import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { connectionManager } from './connection-manager';
-import { getServerByToken, updateServerAllowedDirs } from '@/db/queries';
+import { getServerByToken } from '@/db/queries';
 import type { WSMessage, MessageType } from '@easy-access/shared';
 
 const PING_INTERVAL_MS = 30_000;
@@ -79,7 +79,7 @@ export function createWsServer(httpServer: HttpServer): void {
         }
 
         if (msg.type === 'agent:auth') {
-          const { token, allowedDirs } = msg.payload as { token: string; agentVersion: string; allowedDirs?: string[] };
+          const { token } = msg.payload as { token: string; agentVersion: string; allowedDirs?: string[] };
 
           if (!token || typeof token !== 'string' || token.length < 10) {
             if (ws.readyState === WebSocket.OPEN) ws.close(4003, 'Invalid token format');
@@ -102,19 +102,14 @@ export function createWsServer(httpServer: HttpServer): void {
             clearTimeout(authDeadline);
             serverId = server.id;
 
-            if (Array.isArray(allowedDirs) && allowedDirs.length > 0) {
-              try {
-                await updateServerAllowedDirs(server.id, allowedDirs);
-                server.allowedDirs = allowedDirs;
-              } catch (updateErr) {
-                console.warn('[WS] Failed to sync allowed dirs to DB:', updateErr);
-              }
-            }
-
+            // The hub dashboard is the single source of truth for allowed
+            // directories — the agent's own local config is never trusted
+            // to set or change this. We only push our DB value down to it.
             connectionManager.register(server.id, ws);
             sendToWs(ws, 'hub:auth-ok', {
               serverId: server.id,
               serverName: server.name,
+              allowedDirs: server.allowedDirs ?? [],
             });
 
             console.log(`[WS] Agent authenticated: ${server.name} (${server.id})`);

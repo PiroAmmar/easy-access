@@ -36,7 +36,8 @@ export type MessageType =
   | 'hub:delete-file'      // Request: delete a file or empty directory
   | 'hub:move-file'        // Request: move or rename a file
   | 'hub:mkdir'            // Request: create a directory
-  | 'hub:get-system-info'; // Request: fetch current system statistics
+  | 'hub:get-system-info'  // Request: fetch current system statistics
+  | 'hub:allowed-dirs-update'; // Push: allowed dirs changed on the hub dashboard, apply immediately
 
 // ─── Payload Shapes (Agent → Hub) ─────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ export interface AgentErrorPayload {
 export interface HubAuthOkPayload {
   serverId: string;     // DB id of the matched server record
   serverName: string;
+  allowedDirs: string[]; // Authoritative — set on the hub dashboard, agent must use this for enforcement
 }
 
 export interface HubListDirPayload {
@@ -124,6 +126,10 @@ export interface HubMoveFilePayload {
 export interface HubMkdirPayload {
   requestId: string;
   path: string;
+}
+
+export interface HubAllowedDirsUpdatePayload {
+  allowedDirs: string[];
 }
 
 // ─── WebSocket Close Codes ────────────────────────────────────────────────────

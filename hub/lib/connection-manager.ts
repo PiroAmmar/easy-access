@@ -57,6 +57,25 @@ class ConnectionManager {
     return ws?.readyState === WebSocket.OPEN;
   }
 
+  /**
+   * Send a one-way, fire-and-forget message to a connected agent (no response
+   * expected). Used for pushing live config changes, e.g. allowedDirs edited
+   * on the hub dashboard while the agent is already connected.
+   */
+  push<TPayload>(serverId: string, type: MessageType, payload: TPayload): boolean {
+    const ws = this.connections.get(serverId);
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(
+      JSON.stringify({
+        id: crypto.randomUUID(),
+        type,
+        payload,
+        timestamp: Date.now(),
+      })
+    );
+    return true;
+  }
+
   getOnlineServerIds(): string[] {
     return Array.from(this.connections.keys()).filter((id) => this.isOnline(id));
   }

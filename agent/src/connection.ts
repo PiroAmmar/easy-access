@@ -44,6 +44,15 @@ export class AgentConnection {
   private lastError: string | null = null;
   private authFailed = false;
   private stopped = false;
+  // Authoritative allowed dirs as set on the hub dashboard, received at
+  // auth time (and updated live if changed while connected). This is what
+  // actually gets enforced — the local config.json value is only ever used
+  // as a fallback before the first successful connection.
+  private hubAllowedDirs: string[] | null = null;
+
+  private getEffectiveAllowedDirs(): string[] {
+    return this.hubAllowedDirs ?? this.config.allowedDirs;
+  }
 
   constructor(private readonly config: AgentConfig) {}
 
@@ -159,16 +168,24 @@ export class AgentConnection {
   private async handleMessage(msg: WSMessage): Promise<void> {
     switch (msg.type) {
       case 'hub:auth-ok': {
-        const payload = msg.payload as { serverId: string; serverName: string };
+        const payload = msg.payload as { serverId: string; serverName: string; allowedDirs?: string[] };
         this.authenticated = true;
         this.authFailed = false;
         this.serverId = payload.serverId;
         this.serverName = payload.serverName;
+        this.hubAllowedDirs = Array.isArray(payload.allowedDirs) ? payload.allowedDirs : [];
         this.connectedSince = Date.now();
         this.lastError = null;
         this.reconnectAttempt = 0; // Reset backoff on successful auth
         this.startHeartbeat();
         log.info(`Authenticated as: ${payload.serverName}`);
+        break;
+      }
+
+      case 'hub:allowed-dirs-update': {
+        const { allowedDirs } = msg.payload as { allowedDirs: string[] };
+        this.hubAllowedDirs = Array.isArray(allowedDirs) ? allowedDirs : [];
+        log.info(`Allowed directories updated from hub dashboard (${this.hubAllowedDirs.length} dir(s))`);
         break;
       }
 
@@ -181,7 +198,7 @@ export class AgentConnection {
       case 'hub:list-dir': {
         const { requestId, path } = msg.payload as { requestId: string; path: string };
         try {
-          const entries = await listDirectory(path, this.config.allowedDirs);
+          const entries = await listDirectory(path, this.getEffectiveAllowedDirs());
           this.send('agent:file-list', { requestId, path, entries });
         } catch (err) {
           this.sendError(requestId, err);
@@ -192,7 +209,7 @@ export class AgentConnection {
       case 'hub:read-file': {
         const { requestId, path } = msg.payload as { requestId: string; path: string };
         try {
-          const result = await readFile(path, this.config.allowedDirs);
+          const result = await readFile(path, this.getEffectiveAllowedDirs());
           this.send('agent:file-content', { requestId, path, ...result });
         } catch (err) {
           this.sendError(requestId, err);
@@ -208,7 +225,7 @@ export class AgentConnection {
           overwrite: boolean;
         };
         try {
-          await writeFile(path, content, this.config.allowedDirs, overwrite);
+          await writeFile(path, content, this.getEffectiveAllowedDirs(), overwrite);
           this.send('agent:file-op-result', { requestId, success: true });
         } catch (err) {
           this.send('agent:file-op-result', {
@@ -223,7 +240,7 @@ export class AgentConnection {
       case 'hub:delete-file': {
         const { requestId, path } = msg.payload as { requestId: string; path: string };
         try {
-          await deleteFile(path, this.config.allowedDirs);
+          await deleteFile(path, this.getEffectiveAllowedDirs());
           this.send('agent:file-op-result', { requestId, success: true });
         } catch (err) {
           this.send('agent:file-op-result', {
@@ -242,7 +259,7 @@ export class AgentConnection {
           destinationPath: string;
         };
         try {
-          await moveFile(sourcePath, destinationPath, this.config.allowedDirs);
+          await moveFile(sourcePath, destinationPath, this.getEffectiveAllowedDirs());
           this.send('agent:file-op-result', { requestId, success: true });
         } catch (err) {
           this.send('agent:file-op-result', {
@@ -257,7 +274,7 @@ export class AgentConnection {
       case 'hub:mkdir': {
         const { requestId, path } = msg.payload as { requestId: string; path: string };
         try {
-          await makeDirectory(path, this.config.allowedDirs);
+          await makeDirectory(path, this.getEffectiveAllowedDirs());
           this.send('agent:file-op-result', { requestId, success: true });
         } catch (err) {
           this.send('agent:file-op-result', {
@@ -272,7 +289,7 @@ export class AgentConnection {
       case 'hub:get-system-info': {
         const { requestId } = msg.payload as { requestId?: string };
         try {
-          const sysInfo = await getSystemInfo(this.config.allowedDirs);
+          const sysInfo = await getSystemInfo(this.getEffectiveAllowedDirs());
           // Echo requestId so the hub can pair this with its request
           this.send('agent:system-info', { ...sysInfo, requestId });
         } catch (err) {

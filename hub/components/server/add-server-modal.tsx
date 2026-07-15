@@ -114,7 +114,7 @@ export default function AddServerModal({ open, onClose, onAdd }: AddServerModalP
               placeholder={'One directory per line, e.g.:\nC:\\Users\\YourName\\Documents\nD:\\Projects'}
             />
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
-              These directories will be included in the initial configuration script. To change them later, you must edit the <code>config.json</code> on the remote machine.
+              These directories are enforced by the hub — the agent will only ever access paths inside them, regardless of its local config. You can change this anytime from the server's settings.
             </span>
           </div>
           <div className="modal-footer" style={{ padding: 0, borderTop: 'none' }}>
