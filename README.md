@@ -2,6 +2,8 @@
 
 Access the files on your own computers from anywhere, through a private web dashboard.
 
+**🌍 Live Deployment:** You can view the live deployed dashboard at [https://easy-access.up.railway.app](https://easy-access.up.railway.app).
+
 The project is split into two independent folders:
 
 | Folder   | What it is | Where it runs |
