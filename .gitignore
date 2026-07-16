@@ -57,3 +57,5 @@ Thumbs.db
 .claude/
 .claude-flow/
 graphify-out/
+.mcp.json
+skills-lock.json
