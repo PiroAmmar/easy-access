@@ -68,7 +68,7 @@ interface SheetRowProps {
   totalCols: number;
   isRowSelected: boolean;
   selection: Selection;
-  editCell: { r: number; c: number; value: string } | null;
+  editCell: { r: number; c: number; value: string; selectAll?: boolean } | null;
   merges: MergeRange[];
   coveredSet: Set<string>;
   editing: boolean;
@@ -230,9 +230,12 @@ export default function Grid({ state, dispatch, editing, engine, commitEdit }: G
   useEffect(() => {
     if (editCell && editInputRef.current) {
       editInputRef.current.focus();
-      // If initial value is a full cell value (not typed key), select all
-      if (editInputRef.current.value === editCell.value) {
+      if (editCell.selectAll) {
         editInputRef.current.select();
+      } else {
+        // Keypress-initiated: cursor at end so subsequent keys append
+        const len = editInputRef.current.value.length;
+        editInputRef.current.setSelectionRange(len, len);
       }
     }
   }, [editCell?.r, editCell?.c]); // eslint-disable-line react-hooks/exhaustive-deps

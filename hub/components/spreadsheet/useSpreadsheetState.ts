@@ -7,7 +7,7 @@ export interface SpreadsheetState {
   model: WorkbookModel;
   activeSheet: number;
   selection: Selection;
-  editCell: { r: number; c: number; value: string } | null;
+  editCell: { r: number; c: number; value: string; selectAll?: boolean } | null;
   undoStack: UndoEntry[];
   redoStack: UndoEntry[];
   version: number;
@@ -351,7 +351,8 @@ export function reducer(state: SpreadsheetState, action: SpreadsheetAction): Spr
           anchor: { r: action.r, c: action.c },
           focus: { r: action.r, c: action.c },
         },
-        editCell: { r: action.r, c: action.c, value },
+        // selectAll only when opened via F2/double-click (no initialValue typed)
+        editCell: { r: action.r, c: action.c, value, selectAll: action.initialValue === undefined },
       };
     }
 
