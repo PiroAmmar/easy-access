@@ -21,6 +21,11 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Reset password state
+  const [resetingId, setResetingId] = useState<string | null>(null);
+  const [resetResult, setResetResult] = useState<{ username: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
   const load = async () => {
     setLoading(true);
     const res = await fetch('/api/users');
@@ -88,6 +93,32 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     }
   };
 
+  const resetPassword = async (account: Account) => {
+    if (!confirm(`Reset password for "${account.username}"? Their current password will stop working immediately.`)) return;
+    setResetingId(account.id);
+    try {
+      const res = await fetch(`/api/users/${account.id}`, { method: 'PATCH' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error ?? 'Failed to reset password');
+        return;
+      }
+      setCopied(false);
+      setResetResult({ username: account.username, password: data.data.newPassword });
+    } catch {
+      alert('Failed to reset password');
+    } finally {
+      setResetingId(null);
+    }
+  };
+
+  const copyPassword = async () => {
+    if (!resetResult) return;
+    await navigator.clipboard.writeText(resetResult.password);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <>
       <div className="page-header">
@@ -119,24 +150,35 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                 Joined {new Date(a.createdAt).toLocaleDateString()}
               </span>
               {a.id !== currentUserId && (
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => {
-                    if (confirm(`Delete user "${a.username}"? This cannot be undone.`)) {
-                      deleteAccount(a.id);
-                    }
-                  }}
-                  disabled={deletingId === a.id}
-                  style={{ color: 'var(--color-danger)' }}
-                >
-                  {deletingId === a.id ? 'Deleting...' : 'Delete'}
-                </button>
+                <>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => resetPassword(a)}
+                    disabled={resetingId === a.id}
+                    title="Generate a new password for this user"
+                  >
+                    {resetingId === a.id ? 'Resetting...' : 'Reset Password'}
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      if (confirm(`Delete user "${a.username}"? This cannot be undone.`)) {
+                        deleteAccount(a.id);
+                      }
+                    }}
+                    disabled={deletingId === a.id}
+                    style={{ color: 'var(--color-danger)' }}
+                  >
+                    {deletingId === a.id ? 'Deleting...' : 'Delete'}
+                  </button>
+                </>
               )}
             </div>
           ))}
         </div>
       )}
 
+      {/* Create User Modal */}
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Add User" maxWidth="420px">
         <div className="form-group">
           <label className="form-label">Username</label>
@@ -181,6 +223,54 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
           <button className="btn btn-primary" onClick={createAccount} disabled={saving}>
             {saving ? 'Creating...' : 'Create User'}
           </button>
+        </div>
+      </Modal>
+
+      {/* Reset Password Result Modal */}
+      <Modal
+        open={resetResult !== null}
+        onClose={() => setResetResult(null)}
+        title="Password Reset"
+        maxWidth="420px"
+      >
+        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-4)' }}>
+          A new password has been generated for{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>{resetResult?.username}</strong>.
+          Share it with them and ask them to change it after logging in.
+        </p>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          background: 'var(--surface-raised)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          padding: 'var(--space-3) var(--space-4)',
+          marginBottom: 'var(--space-4)',
+        }}>
+          <code style={{
+            flex: 1,
+            fontFamily: 'ui-monospace, Consolas, monospace',
+            fontSize: 'var(--text-base)',
+            letterSpacing: '0.05em',
+            color: 'var(--text-primary)',
+            userSelect: 'all',
+          }}>
+            {resetResult?.password}
+          </code>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={copyPassword}
+            style={{ flexShrink: 0 }}
+          >
+            {copied ? '✓ Copied' : 'Copy'}
+          </button>
+        </div>
+        <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)', marginBottom: 'var(--space-4)' }}>
+          This password will not be shown again after you close this dialog.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn btn-primary" onClick={() => setResetResult(null)}>Done</button>
         </div>
       </Modal>
     </>

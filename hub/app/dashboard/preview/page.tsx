@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { formatBytes } from '@easy-access/shared';
+import { useFeedbackStore } from '@/lib/stores/feedback-store';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -477,9 +478,9 @@ function DisclaimerModal({
 // ─── Toolbar strip used by all editors ───────────────────────────────────────
 
 function EditorToolbar({
-  label, saving, saved, saveError, onSave, onCancel,
+  label, saving, onSave, onCancel,
 }: {
-  label: string; saving: boolean; saved: boolean; saveError: string;
+  label: string; saving: boolean;
   onSave: () => void; onCancel: () => void;
 }) {
   return (
@@ -498,8 +499,6 @@ function EditorToolbar({
         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>{label}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-        {saved && <span style={{ fontSize: 'var(--text-xs)', color: '#4ade80' }}>✓ Saved</span>}
-        {saveError && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)' }}>✗ {saveError}</span>}
         <button className="btn btn-primary btn-sm" onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : '💾 Save'}
         </button>
@@ -558,8 +557,7 @@ export default function PreviewPage() {
 
   // ── Save state ───────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState('');
+  const { add: addFeedback } = useFeedbackStore();
 
   // ── File type flags ──────────────────────────────────────────────
   const isImage  = ['.jpg','.jpeg','.png','.gif','.svg','.webp','.bmp','.ico'].includes(ext);
@@ -578,7 +576,7 @@ export default function PreviewPage() {
     if (!serverId || !path) return;
     setLoading(true); setError('');
     setVideoReady(false); setZipEntries(null); setZipError('');
-    setDocHtml(null); setDocError(''); setDocEditing(false); setSaved(false); setSaveError('');
+    setDocHtml(null); setDocError(''); setDocEditing(false);
     setXlSheets([]); setXlError(''); setXlEditing(false);
     setPptSlides([]); setPptError(''); setPptEditing(false);
 
@@ -666,17 +664,17 @@ export default function PreviewPage() {
   }, [fileName]);
 
   // ── Save helpers ─────────────────────────────────────────────────
-  const clearSaveState = () => { setSaved(false); setSaveError(''); };
 
   const doSave = useCallback(async (b64: string) => {
-    setSaving(true); clearSaveState();
+    setSaving(true);
     try {
       await saveFile(serverId, path, b64);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e) { setSaveError((e as Error).message); }
+      addFeedback({ type: 'success', title: 'Document saved', message: \`Successfully saved \${fileName}\` });
+    } catch (e) {
+      addFeedback({ type: 'error', title: 'Failed to save', message: (e as Error).message });
+    }
     finally { setSaving(false); }
-  }, [serverId, path]);
+  }, [serverId, path, fileName, addFeedback]);
 
   // ── DOCX save ────────────────────────────────────────────────────
   const saveDocx = useCallback(async () => {

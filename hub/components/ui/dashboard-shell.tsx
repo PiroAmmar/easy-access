@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Sidebar from './sidebar';
+import GlobalFeedback from './feedback';
 
 interface DashboardShellProps {
   userName?: string | null;
@@ -91,6 +92,7 @@ export default function DashboardShell({ userName, role, children }: DashboardSh
       <main className="dashboard-content">
         {children}
       </main>
+      <GlobalFeedback />
     </div>
   );
 }

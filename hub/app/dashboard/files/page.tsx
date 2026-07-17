@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useFileStore } from '@/lib/stores/file-store';
+import { useFeedbackStore } from '@/lib/stores/feedback-store';
 import FileIcon from '@/components/file-browser/file-icon';
 import { formatBytes } from '@easy-access/shared';
 import '@/styles/file-browser.css';
@@ -18,6 +19,8 @@ export default function FileBrowserPage() {
     navigateTo, setServer, goUp, setViewMode,
     selectedEntries, toggleSelect, clearSelection,
   } = useFileStore();
+
+  const { add: addFeedback, update: updateFeedback } = useFeedbackStore();
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; path: string; type: string } | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -71,7 +74,10 @@ export default function FileBrowserPage() {
     try {
       const res = await fetch(`/api/files?${params}`);
       const json = await res.json();
-      if (!json.success) { alert(json.error); return; }
+      if (!json.success) {
+        addFeedback({ type: 'error', title: 'Download failed', message: json.error });
+        return;
+      }
       const blob = new Blob([Uint8Array.from(atob(json.data.content), (c) => c.charCodeAt(0))], { type: json.data.mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -79,29 +85,51 @@ export default function FileBrowserPage() {
       a.download = path.split(/[/\\]/).pop() ?? 'file';
       a.click();
       URL.revokeObjectURL(url);
-    } catch { alert('Download failed'); }
+    } catch {
+      addFeedback({ type: 'error', title: 'Download failed', message: 'Network or server error' });
+    }
   };
 
   const handleDelete = async (path: string) => {
     setContextMenu(null);
-    if (!confirm(`Delete "${path.split(/[/\\]/).pop()}"?`)) return;
+    const fileName = path.split(/[/\\]/).pop();
+    if (!confirm(`Delete "${fileName}"?`)) return;
     try {
       const params = new URLSearchParams({ serverId: serverId!, path });
       const res = await fetch(`/api/files?${params}`, { method: 'DELETE' });
       const json = await res.json();
-      if (!json.success) alert(json.error);
-      else navigateTo(currentPath);
-    } catch { alert('Delete failed'); }
+      if (!json.success) {
+        addFeedback({ type: 'error', title: 'Delete failed', message: json.error });
+      } else {
+        addFeedback({ type: 'success', title: 'File deleted', message: `Successfully deleted ${fileName}` });
+        navigateTo(currentPath);
+      }
+    } catch {
+      addFeedback({ type: 'error', title: 'Delete failed', message: 'Network or server error' });
+    }
   };
 
   const handleUpload = async (files: FileList) => {
-    if (!serverId) return;
+    if (!serverId || files.length === 0) return;
     setUploading(true);
-    for (const file of Array.from(files)) {
+    
+    const totalFiles = files.length;
+    const fbId = addFeedback({ 
+      type: 'progress', 
+      title: \`Uploading \${totalFiles} file\${totalFiles === 1 ? '' : 's'}...\`, 
+      progress: 0 
+    });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < totalFiles; i++) {
+      const file = files[i];
       const buffer = await file.arrayBuffer();
       const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-      const sep = currentPath.includes('\\') ? '\\' : '/';
+      const sep = currentPath.includes('\\\\') ? '\\\\' : '/';
       const filePath = currentPath.endsWith(sep) ? currentPath + file.name : currentPath + sep + file.name;
+      
       try {
         const res = await fetch('/api/files', {
           method: 'POST',
@@ -109,11 +137,30 @@ export default function FileBrowserPage() {
           body: JSON.stringify({ serverId, path: filePath, action: 'write', content: base64, overwrite: true }),
         });
         const json = await res.json();
-        if (!json.success) alert(`Upload failed for ${file.name}: ${json.error}`);
-      } catch { alert(`Upload failed for ${file.name}`); }
+        if (!json.success) {
+          failCount++;
+          addFeedback({ type: 'error', title: \`Upload failed for \${file.name}\`, message: json.error });
+        } else {
+          successCount++;
+        }
+      } catch {
+        failCount++;
+        addFeedback({ type: 'error', title: \`Upload failed for \${file.name}\`, message: 'Network or server error' });
+      }
+
+      updateFeedback(fbId, { progress: Math.round(((i + 1) / totalFiles) * 100) });
     }
+
     setUploading(false);
     navigateTo(currentPath);
+
+    if (failCount === 0) {
+      updateFeedback(fbId, { type: 'success', title: 'Upload complete', message: \`Successfully uploaded \${successCount} file\${successCount === 1 ? '' : 's'}\` });
+    } else if (successCount > 0) {
+      updateFeedback(fbId, { type: 'error', title: 'Upload completed with errors', message: \`Uploaded \${successCount}, failed \${failCount}\` });
+    } else {
+      updateFeedback(fbId, { type: 'error', title: 'Upload failed', message: 'All files failed to upload' });
+    }
   };
 
   // Close context menu on click outside.
