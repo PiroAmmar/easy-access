@@ -57,7 +57,7 @@ export default function GlobalFeedback() {
               <div className="feedback-toast-progress-bar">
                 <div 
                   className="feedback-toast-progress-fill" 
-                  style={{ width: \`\${fb.progress}%\` }}
+                  style={{ width: `\${fb.progress}%` }}
                 />
               </div>
             )}

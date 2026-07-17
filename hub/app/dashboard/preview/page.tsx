@@ -478,9 +478,10 @@ function DisclaimerModal({
 // ─── Toolbar strip used by all editors ───────────────────────────────────────
 
 function EditorToolbar({
-  label, saving, onSave, onCancel,
+  label, saving, saved, saveError, onSave, onCancel,
 }: {
   label: string; saving: boolean;
+  saved?: boolean; saveError?: string;
   onSave: () => void; onCancel: () => void;
 }) {
   return (
@@ -557,6 +558,9 @@ export default function PreviewPage() {
 
   // ── Save state ───────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const clearSaveState = () => { setSaved(false); setSaveError(''); };
   const { add: addFeedback } = useFeedbackStore();
 
   // ── File type flags ──────────────────────────────────────────────
@@ -669,7 +673,7 @@ export default function PreviewPage() {
     setSaving(true);
     try {
       await saveFile(serverId, path, b64);
-      addFeedback({ type: 'success', title: 'Document saved', message: \`Successfully saved \${fileName}\` });
+      addFeedback({ type: 'success', title: 'Document saved', message: `Successfully saved \${fileName}` });
     } catch (e) {
       addFeedback({ type: 'error', title: 'Failed to save', message: (e as Error).message });
     }

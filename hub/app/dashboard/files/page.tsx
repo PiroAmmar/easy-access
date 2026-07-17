@@ -116,7 +116,7 @@ export default function FileBrowserPage() {
     const totalFiles = files.length;
     const fbId = addFeedback({ 
       type: 'progress', 
-      title: \`Uploading \${totalFiles} file\${totalFiles === 1 ? '' : 's'}...\`, 
+      title: `Uploading \${totalFiles} file\${totalFiles === 1 ? '' : 's'}...`, 
       progress: 0 
     });
 
@@ -139,13 +139,13 @@ export default function FileBrowserPage() {
         const json = await res.json();
         if (!json.success) {
           failCount++;
-          addFeedback({ type: 'error', title: \`Upload failed for \${file.name}\`, message: json.error });
+          addFeedback({ type: 'error', title: `Upload failed for \${file.name}`, message: json.error });
         } else {
           successCount++;
         }
       } catch {
         failCount++;
-        addFeedback({ type: 'error', title: \`Upload failed for \${file.name}\`, message: 'Network or server error' });
+        addFeedback({ type: 'error', title: `Upload failed for \${file.name}`, message: 'Network or server error' });
       }
 
       updateFeedback(fbId, { progress: Math.round(((i + 1) / totalFiles) * 100) });
@@ -155,9 +155,9 @@ export default function FileBrowserPage() {
     navigateTo(currentPath);
 
     if (failCount === 0) {
-      updateFeedback(fbId, { type: 'success', title: 'Upload complete', message: \`Successfully uploaded \${successCount} file\${successCount === 1 ? '' : 's'}\` });
+      updateFeedback(fbId, { type: 'success', title: 'Upload complete', message: `Successfully uploaded \${successCount} file\${successCount === 1 ? '' : 's'}` });
     } else if (successCount > 0) {
-      updateFeedback(fbId, { type: 'error', title: 'Upload completed with errors', message: \`Uploaded \${successCount}, failed \${failCount}\` });
+      updateFeedback(fbId, { type: 'error', title: 'Upload completed with errors', message: `Uploaded \${successCount}, failed \${failCount}` });
     } else {
       updateFeedback(fbId, { type: 'error', title: 'Upload failed', message: 'All files failed to upload' });
     }
