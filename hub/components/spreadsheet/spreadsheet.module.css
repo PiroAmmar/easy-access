@@ -1,0 +1,392 @@
+.viewer {
+  /* ── Color palette ──────────────────────────────────────────────── */
+  --xl-cell-bg: #ffffff;
+  --xl-cell-border: #d4d4d4;
+  --xl-header-bg: #f2f2f2;
+  --xl-header-border: #c8c8c8;
+  --xl-header-selected-bg: #caead8;
+  --xl-header-selected-color: #0f703b;
+  --xl-header-text: #616161;
+  --xl-selection-border: #217346;
+  --xl-range-fill: rgba(33, 115, 70, 0.08);
+  --xl-corner-bg: #f2f2f2;
+  --xl-ribbon-bg: #f3f2f1;
+  --xl-ribbon-border: #c7c7c7;
+  --xl-white: #ffffff;
+  --xl-tab-active-border: #217346;
+  --xl-text: #212121;
+  --xl-text-secondary: #616161;
+  --xl-edit-outline: #217346;
+
+  /* ── Root layout ────────────────────────────────────────────────── */
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  border-radius: 2px;
+  font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+  font-size: 14px;
+  color: #212121;
+  overflow: hidden;
+}
+
+/* ── Action bar ─────────────────────────────────────────────────── */
+.actionBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--xl-ribbon-bg);
+  border-bottom: 1px solid var(--xl-ribbon-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.actionBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.actionBarRight {
+  display: flex;
+  gap: 8px;
+}
+
+.fileName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--xl-text);
+}
+
+.editingBadge {
+  font-size: 11px;
+  color: #d83b01;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: rgba(216, 59, 1, 0.1);
+  border-radius: 3px;
+}
+
+.savedBadge {
+  font-size: 11px;
+  color: #107c10;
+  font-weight: 600;
+}
+
+.errorBadge {
+  font-size: 11px;
+  color: #a80000;
+}
+
+.btnEdit {
+  padding: 4px 12px;
+  font-size: 12px;
+  background: var(--xl-white);
+  border: 1px solid var(--xl-ribbon-border);
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--xl-text);
+  font-family: inherit;
+}
+
+.btnEdit:hover {
+  background: #e1dfdd;
+}
+
+.btnSave {
+  padding: 4px 12px;
+  font-size: 12px;
+  background: #217346;
+  border: 1px solid #1a5c38;
+  border-radius: 2px;
+  cursor: pointer;
+  color: #fff;
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.btnSave:hover {
+  background: #1a5c38;
+}
+
+.btnSave:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnCancel {
+  padding: 4px 12px;
+  font-size: 12px;
+  background: var(--xl-white);
+  border: 1px solid var(--xl-ribbon-border);
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--xl-text);
+  font-family: inherit;
+}
+
+.btnCancel:hover {
+  background: #e1dfdd;
+}
+
+/* ── Formula bar ─────────────────────────────────────────────────── */
+.formulaBar {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--xl-header-border);
+  background: var(--xl-white);
+  flex-shrink: 0;
+  height: 28px;
+}
+
+.nameBox {
+  width: 68px;
+  min-width: 68px;
+  text-align: center;
+  border-right: 1px solid var(--xl-header-border);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-family: 'Courier New', 'Consolas', monospace;
+  font-weight: 600;
+  color: var(--xl-text);
+  flex-shrink: 0;
+  padding: 0 4px;
+  box-sizing: border-box;
+}
+
+.fxLabel {
+  padding: 0 8px;
+  border-right: 1px solid var(--xl-header-border);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--xl-text-secondary);
+  font-style: italic;
+  flex-shrink: 0;
+}
+
+.fxInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--xl-text);
+  font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+  height: 100%;
+  cursor: default;
+}
+
+.fxInput:focus {
+  outline: 1px solid var(--xl-edit-outline);
+  outline-offset: -1px;
+}
+
+/* ── Grid container ─────────────────────────────────────────────── */
+.grid {
+  overflow: auto;
+  max-height: 62vh;
+  outline: none;
+  position: relative;
+  flex: 1;
+  background: var(--xl-cell-bg);
+}
+
+/* ── Column header ─────────────────────────────────────────────── */
+.colHeader {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--xl-header-bg);
+  border-right: 1px solid var(--xl-header-border);
+  border-bottom: 2px solid var(--xl-header-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--xl-header-text);
+  text-align: center;
+  user-select: none;
+  cursor: pointer;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.colHeader:hover {
+  background: #e6e6e6;
+}
+
+/* ── Row header ──────────────────────────────────────────────────── */
+.rowHeader {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--xl-header-bg);
+  border-right: 2px solid var(--xl-header-border);
+  border-bottom: 1px solid var(--xl-cell-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--xl-header-text);
+  text-align: center;
+  user-select: none;
+  cursor: pointer;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.rowHeader:hover {
+  background: #e6e6e6;
+}
+
+/* ── Corner cell ─────────────────────────────────────────────────── */
+.cornerCell {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  background: var(--xl-corner-bg);
+  border-right: 2px solid var(--xl-header-border);
+  border-bottom: 2px solid var(--xl-header-border);
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ── Cell ────────────────────────────────────────────────────────── */
+.cell {
+  background: var(--xl-cell-bg);
+  border-right: 1px solid var(--xl-cell-border);
+  border-bottom: 1px solid var(--xl-cell-border);
+  padding: 0 4px;
+  position: relative;
+  cursor: cell;
+  overflow: hidden;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+/* ── Selected cell ───────────────────────────────────────────────── */
+.cellSelected {
+  outline: 2px solid var(--xl-selection-border);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+/* ── Editing cell ────────────────────────────────────────────────── */
+.cellEditing {
+  outline: 2px solid var(--xl-edit-outline);
+  outline-offset: -2px;
+  z-index: 2;
+}
+
+/* ── In-range cell (range highlight) ────────────────────────────── */
+.cellInRange {
+  background: var(--xl-range-fill);
+}
+
+/* ── Header selected ─────────────────────────────────────────────── */
+.headerSelected {
+  background: var(--xl-header-selected-bg) !important;
+  color: var(--xl-header-selected-color) !important;
+}
+
+/* ── Truncated cell text ─────────────────────────────────────────── */
+.truncated {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  height: 100%;
+  line-height: inherit;
+}
+
+/* ── Sheet tabs ──────────────────────────────────────────────────── */
+.sheetTabs {
+  display: flex;
+  border-top: 1px solid var(--xl-header-border);
+  background: var(--xl-ribbon-bg);
+  overflow-x: auto;
+  flex-shrink: 0;
+  min-height: 30px;
+  align-items: stretch;
+}
+
+.sheetTab {
+  padding: 4px 16px;
+  font-size: 12px;
+  border: none;
+  border-right: 1px solid var(--xl-header-border);
+  border-top: 2px solid transparent;
+  background: transparent;
+  color: var(--xl-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+}
+
+.sheetTab:hover {
+  background: #e1dfdd;
+  color: var(--xl-text);
+}
+
+.sheetTabActive {
+  background: var(--xl-white) !important;
+  color: var(--xl-text) !important;
+  border-top-color: var(--xl-tab-active-border) !important;
+  border-bottom: none;
+  font-weight: 600;
+}
+
+/* ── Loading / error states ─────────────────────────────────────── */
+.loadingState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--xl-text-secondary);
+  font-size: 13px;
+}
+
+.errorState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #a80000;
+  font-size: 13px;
+  padding: 16px;
+  text-align: center;
+}
+
+/* ── Inline edit input ───────────────────────────────────────────── */
+.cellEditInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: var(--xl-white);
+  padding: 0 4px;
+  font-size: 13px;
+  font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+  color: var(--xl-text);
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+/* ── More than max rows notice ───────────────────────────────────── */
+.rowLimitNotice {
+  padding: 5px 12px;
+  font-size: 11px;
+  color: var(--xl-text-secondary);
+  background: var(--xl-header-bg);
+  border-top: 1px solid var(--xl-cell-border);
+  text-align: center;
+}

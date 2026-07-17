@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { formatBytes } from '@easy-access/shared';
 import { useFeedbackStore } from '@/lib/stores/feedback-store';
+import SpreadsheetViewer from '@/components/spreadsheet/SpreadsheetViewer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -149,282 +150,7 @@ async function savePptx(
   });
 }
 
-// ─── Spreadsheet helpers ─────────────────────────────────────────────────────
-
-/** Returns the Excel-style column letter(s) for a 0-indexed column. */
-function colLetter(i: number): string {
-  let s = '';
-  let n = i + 1;
-  while (n > 0) { n--; s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26); }
-  return s;
-}
-
-const SHEET_MAX_ROWS = 500;
-const SHEET_COL_W    = 110;
-const SHEET_ROW_W    = 44;
-
-/** A proper spreadsheet viewer / editor — similar to Google Sheets in feel. */
-function SpreadsheetViewer({
-  sheets, editSheets, activeSheet, onActiveSheetChange, editing, onCellChange, onHeaderChange, saving, saved, saveError, onSave, onCancelEdit,
-}: {
-  sheets: XlsxSheet[];
-  editSheets: XlsxSheet[];
-  activeSheet: number;
-  onActiveSheetChange: (i: number) => void;
-  editing: boolean;
-  onCellChange: (ri: number, ci: number, val: string) => void;
-  onHeaderChange: (ci: number, val: string) => void;
-  saving: boolean;
-  saved: boolean;
-  saveError: string;
-  onSave: () => void;
-  onCancelEdit: () => void;
-}) {
-  const viewSheets = editing ? editSheets : sheets;
-  const sheet = viewSheets[activeSheet] ?? viewSheets[0];
-
-  // Selection / editing state
-  const [selRow, setSelRow] = useState(-1); // -1 = header row
-  const [selCol, setSelCol] = useState(0);
-  const [editRow, setEditRow] = useState<number | null>(null);
-  const [editCol, setEditCol] = useState<number | null>(null);
-  const [editVal, setEditVal] = useState('');
-
-  const inlineRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  if (!sheet) return null;
-
-  const displayRows = sheet.rows.slice(0, SHEET_MAX_ROWS);
-  const totalCols = Math.max(
-    sheet.headers.length,
-    displayRows.reduce((m, r) => Math.max(m, r.length), 0),
-    1
-  );
-
-  const getCellVal = (row: number, col: number): string =>
-    row === -1 ? (sheet.headers[col] ?? '') : (displayRows[row]?.[col] ?? '');
-
-  const commitEdit = () => {
-    if (editRow === null || editCol === null) return;
-    if (editRow === -1) onHeaderChange(editCol, editVal);
-    else onCellChange(editRow, editCol, editVal);
-    setEditRow(null);
-    setEditCol(null);
-  };
-
-  const startEdit = (row: number, col: number, initial?: string) => {
-    if (!editing) return;
-    // Commit any current edit first (captured from closure — correct for this render)
-    if (editRow !== null && editCol !== null) {
-      if (editRow === -1) onHeaderChange(editCol, editVal);
-      else onCellChange(editRow, editCol, editVal);
-    }
-    setEditRow(row);
-    setEditCol(col);
-    setEditVal(initial !== undefined ? initial : getCellVal(row, col));
-    requestAnimationFrame(() => { inlineRef.current?.focus(); if (initial === undefined) inlineRef.current?.select(); });
-  };
-
-  const selectCell = (row: number, col: number) => {
-    commitEdit();
-    setSelRow(row);
-    setSelCol(col);
-    requestAnimationFrame(() => containerRef.current?.focus());
-  };
-
-  const moveSelection = (dRow: number, dCol: number) => {
-    commitEdit();
-    setSelRow((r) => Math.max(-1, Math.min(r + dRow, displayRows.length - 1)));
-    setSelCol((c) => Math.max(0, Math.min(c + dCol, totalCols - 1)));
-  };
-
-  const handleContainerKey = (e: React.KeyboardEvent) => {
-    if (editRow !== null) return; // let inline input handle its own keys
-    switch (e.key) {
-      case 'ArrowUp':    moveSelection(-1, 0); e.preventDefault(); break;
-      case 'ArrowDown':  moveSelection(1, 0);  e.preventDefault(); break;
-      case 'ArrowLeft':  moveSelection(0, -1); e.preventDefault(); break;
-      case 'ArrowRight': moveSelection(0, 1);  e.preventDefault(); break;
-      case 'Tab':        moveSelection(0, e.shiftKey ? -1 : 1); e.preventDefault(); break;
-      case 'Enter': case 'F2': if (editing) startEdit(selRow, selCol); e.preventDefault(); break;
-      case 'Delete': case 'Backspace':
-        if (editing) { if (selRow === -1) onHeaderChange(selCol, ''); else onCellChange(selRow, selCol, ''); }
-        break;
-      default:
-        if (editing && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-          startEdit(selRow, selCol, e.key); e.preventDefault();
-        }
-    }
-  };
-
-  const handleInlineKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    e.stopPropagation();
-    if (e.key === 'Enter') {
-      commitEdit();
-      setSelRow((r) => Math.min(r + 1, displayRows.length - 1));
-      e.preventDefault();
-      requestAnimationFrame(() => containerRef.current?.focus());
-    } else if (e.key === 'Tab') {
-      const nextCol = selCol + (e.shiftKey ? -1 : 1);
-      commitEdit();
-      if (nextCol >= 0 && nextCol < totalCols) {
-        setSelCol(nextCol);
-        requestAnimationFrame(() => startEdit(selRow, nextCol));
-      } else {
-        requestAnimationFrame(() => containerRef.current?.focus());
-      }
-      e.preventDefault();
-    } else if (e.key === 'Escape') {
-      setEditRow(null); setEditCol(null);
-      requestAnimationFrame(() => containerRef.current?.focus());
-    }
-  };
-
-  const cellAddr = selRow === -1 ? `${colLetter(selCol)}1` : `${colLetter(selCol)}${selRow + 2}`;
-  const fbarValue = (editRow === selRow && editCol === selCol) ? editVal : getCellVal(selRow, selCol);
-
-  const BD  = '1px solid var(--surface-border)';
-  const BD2 = '2px solid var(--surface-border)';
-  const BG  = 'var(--surface-elevated)';
-  const SEL = '2px solid rgba(99,102,241,0.85)';
-
-  const renderCell = (row: number, col: number, isBold: boolean) => {
-    const isHere = selRow === row && selCol === col;
-    const isEditingHere = editRow === row && editCol === col;
-    const h = isBold ? 28 : 24;
-    return (
-      <td key={col}
-        style={{ borderRight: BD, borderBottom: BD, padding: 0, height: h, width: SHEET_COL_W, minWidth: SHEET_COL_W, maxWidth: SHEET_COL_W, background: isHere ? 'rgba(99,102,241,0.08)' : (isBold ? 'rgba(255,255,255,0.03)' : (!isBold && row % 2 !== 0 ? 'rgba(255,255,255,0.01)' : 'transparent')), outline: isHere && !isEditingHere ? SEL : isEditingHere ? '2px solid #6366f1' : 'none', outlineOffset: -2, position: 'relative', cursor: editing ? 'cell' : 'default', overflow: 'hidden', boxSizing: 'border-box' }}
-        onClick={() => selectCell(row, col)}
-        onDoubleClick={() => startEdit(row, col)}
-      >
-        {isEditingHere ? (
-          <input
-            ref={inlineRef}
-            value={editVal}
-            onChange={(e) => setEditVal(e.target.value)}
-            onKeyDown={handleInlineKey}
-            onBlur={commitEdit}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', outline: 'none', background: 'rgba(99,102,241,0.07)', padding: '0 8px', fontSize: 12, color: 'var(--text-primary)', fontWeight: isBold ? 700 : 400, zIndex: 1, boxSizing: 'border-box' }}
-          />
-        ) : (
-          <div style={{ padding: '0 8px', fontSize: 12, fontWeight: isBold ? 700 : 400, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: `${h}px` }}>
-            {getCellVal(row, col)}
-          </div>
-        )}
-      </td>
-    );
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--surface-bg)', border: '1px solid var(--surface-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-
-      {/* ─ Top action bar ──────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)', padding: '8px 12px', borderBottom: BD2, background: BG, flexShrink: 0, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>📊 {sheets.length} sheet{sheets.length !== 1 ? 's' : ''}</span>
-          {editing && <span style={{ fontSize: 12, color: 'var(--color-warning)', fontWeight: 600 }}>✏️ Editing</span>}
-          {saved && <span style={{ fontSize: 12, color: '#4ade80' }}>✓ Saved</span>}
-          {saveError && <span style={{ fontSize: 12, color: 'var(--color-danger)' }}>✗ {saveError}</span>}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {editing ? (
-            <>
-              <button className="btn btn-primary btn-sm" onClick={onSave} disabled={saving}>{saving ? 'Saving…' : '💾 Save'}</button>
-              <button className="btn btn-secondary btn-sm" onClick={onCancelEdit}>Cancel</button>
-            </>
-          ) : (
-            <button className="btn btn-secondary btn-sm" onClick={() => { /* trigger disclaimer via parent */ onSave(); }}>✏️ Edit</button>
-          )}
-        </div>
-      </div>
-
-      {/* ─ Formula bar ─────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: BD2, background: BG, flexShrink: 0, height: 34 }}>
-        <div style={{ width: 68, textAlign: 'center', borderRight: BD, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-brand-300)', flexShrink: 0 }}>
-          {cellAddr}
-        </div>
-        <div style={{ padding: '0 10px', borderRight: BD, height: '100%', display: 'flex', alignItems: 'center', fontSize: 13, color: 'var(--text-tertiary)', fontStyle: 'italic', flexShrink: 0 }}>fx</div>
-        <input
-          value={fbarValue}
-          readOnly={!editing}
-          onChange={(e) => {
-            if (!editing) return;
-            setEditVal(e.target.value);
-            if (editRow === null) { setEditRow(selRow); setEditCol(selCol); }
-          }}
-          onFocus={() => { if (editing && editRow === null) { setEditRow(selRow); setEditCol(selCol); setEditVal(getCellVal(selRow, selCol)); } }}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === 'Enter') { commitEdit(); requestAnimationFrame(() => containerRef.current?.focus()); e.preventDefault(); }
-            if (e.key === 'Escape') { setEditRow(null); setEditCol(null); requestAnimationFrame(() => containerRef.current?.focus()); }
-          }}
-          placeholder={editing ? 'Select a cell to edit…' : ''}
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '0 12px', fontSize: 13, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', height: '100%', cursor: editing ? 'text' : 'default' }}
-        />
-      </div>
-
-      {/* ─ Grid ─────────────────────────────────────────────────────── */}
-      <div
-        ref={containerRef}
-        tabIndex={0}
-        onKeyDown={handleContainerKey}
-        style={{ overflow: 'auto', maxHeight: '62vh', outline: 'none', position: 'relative' }}
-      >
-        <table style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-          <colgroup>
-            <col style={{ width: SHEET_ROW_W, minWidth: SHEET_ROW_W }} />
-            {Array.from({ length: totalCols }, (_, ci) => <col key={ci} style={{ width: SHEET_COL_W, minWidth: SHEET_COL_W }} />)}
-          </colgroup>
-          <thead>
-            <tr style={{ height: 24 }}>
-              {/* corner */}
-              <th style={{ position: 'sticky', top: 0, left: 0, zIndex: 4, background: BG, borderRight: BD2, borderBottom: BD2 }} />
-              {Array.from({ length: totalCols }, (_, ci) => (
-                <th key={ci} style={{ position: 'sticky', top: 0, zIndex: 3, background: selCol === ci ? 'rgba(99,102,241,0.14)' : BG, borderRight: BD, borderBottom: BD2, fontSize: 11, fontWeight: 700, color: selCol === ci ? 'var(--color-brand-300)' : 'var(--text-tertiary)', textAlign: 'center', letterSpacing: '0.06em', userSelect: 'none' }}>
-                  {colLetter(ci)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {/* Header row (row index = -1) */}
-            <tr style={{ height: 28 }}>
-              <td style={{ position: 'sticky', left: 0, zIndex: 2, background: selRow === -1 ? 'rgba(99,102,241,0.14)' : BG, borderRight: BD2, borderBottom: BD, fontSize: 11, fontWeight: 700, color: selRow === -1 ? 'var(--color-brand-300)' : 'var(--text-tertiary)', textAlign: 'center', userSelect: 'none', width: SHEET_ROW_W, minWidth: SHEET_ROW_W }}>1</td>
-              {Array.from({ length: totalCols }, (_, ci) => renderCell(-1, ci, true))}
-            </tr>
-            {/* Data rows */}
-            {displayRows.map((_, ri) => (
-              <tr key={ri} style={{ height: 24 }}>
-                <td style={{ position: 'sticky', left: 0, zIndex: 2, background: selRow === ri ? 'rgba(99,102,241,0.14)' : BG, borderRight: BD2, borderBottom: BD, fontSize: 11, fontWeight: 700, color: selRow === ri ? 'var(--color-brand-300)' : 'var(--text-tertiary)', textAlign: 'center', userSelect: 'none', width: SHEET_ROW_W, minWidth: SHEET_ROW_W }}>{ri + 2}</td>
-                {Array.from({ length: totalCols }, (_, ci) => renderCell(ri, ci, false))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {sheet.rows.length > SHEET_MAX_ROWS && (
-          <div style={{ padding: '6px 16px', fontSize: 11, color: 'var(--text-tertiary)', background: BG, borderTop: BD }}>
-            Showing {SHEET_MAX_ROWS} of {sheet.rows.length} rows. Download to view all.
-          </div>
-        )}
-      </div>
-
-      {/* ─ Sheet tabs (bottom) ────────────────────────────────────── */}
-      {viewSheets.length > 1 && (
-        <div style={{ display: 'flex', borderTop: BD2, background: BG, overflowX: 'auto', flexShrink: 0 }}>
-          {viewSheets.map((s, i) => (
-            <button key={i}
-              onClick={() => { commitEdit(); onActiveSheetChange(i); }}
-              style={{ padding: '5px 16px', fontSize: 12, border: 'none', borderRight: BD, borderTop: activeSheet === i ? '2px solid var(--color-brand-400)' : '2px solid transparent', background: activeSheet === i ? 'var(--interactive-brand-bg)' : 'transparent', color: activeSheet === i ? 'var(--color-brand-300)' : 'var(--text-tertiary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              {s.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+// (Old SpreadsheetViewer removed — now imported from @/components/spreadsheet/SpreadsheetViewer)
 
 // ─── Disclaimer Modal ─────────────────────────────────────────────────────────
 
@@ -540,12 +266,9 @@ export default function PreviewPage() {
   const [docDisclaimer, setDocDisclaimer] = useState(false);
 
   // ── Excel ────────────────────────────────────────────────────────
-  const [xlSheets, setXlSheets] = useState<XlsxSheet[]>([]);
-  const [xlEditSheets, setXlEditSheets] = useState<XlsxSheet[]>([]);
-  const [xlActiveSheet, setXlActiveSheet] = useState(0);
-  const [xlError, setXlError] = useState('');
+  const [xlRawB64, setXlRawB64] = useState('');
   const [xlEditing, setXlEditing] = useState(false);
-  const [xlDisclaimer, setXlDisclaimer] = useState(false);
+  const [xlsxDisclaimer, setXlsxDisclaimer] = useState(false);
 
   // ── PPTX ─────────────────────────────────────────────────────────
   const [pptSlides, setPptSlides] = useState<PptSlide[]>([]);
@@ -581,12 +304,12 @@ export default function PreviewPage() {
     setLoading(true); setError('');
     setVideoReady(false); setZipEntries(null); setZipError('');
     setDocHtml(null); setDocError(''); setDocEditing(false);
-    setXlSheets([]); setXlError(''); setXlEditing(false);
+    setXlRawB64(''); setXlEditing(false); setXlsxDisclaimer(false);
     setPptSlides([]); setPptError(''); setPptEditing(false);
 
     fetch(`/api/files?${new URLSearchParams({ serverId, path, action: 'read' })}`)
       .then((r) => r.json())
-      .then((j) => { if (!j.success) throw new Error(j.error); setData(j.data); })
+      .then((j) => { if (!j.success) throw new Error(j.error); setData(j.data); if (isXlsx) setXlRawB64(j.data.content); })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
 
@@ -626,24 +349,7 @@ export default function PreviewPage() {
     })();
   }, [data, isDocx]);
 
-  // ── Excel parse ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!data || !isXlsx) return;
-    (async () => {
-      try {
-        const XLSX = await import('xlsx');
-        const wb = XLSX.read(b64ToUint8(data.content), { type: 'array' });
-        const parsed: XlsxSheet[] = wb.SheetNames.map((name) => {
-          const ws = wb.Sheets[name];
-          const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' }) as unknown[][];
-          const allRows = raw.map((row) => row.map(String));
-          return { name, headers: allRows[0] ?? [], rows: allRows.slice(1) };
-        });
-        setXlSheets(parsed);
-        setXlEditSheets(parsed.map((s) => ({ ...s, headers: [...s.headers], rows: s.rows.map((r) => [...r]) })));
-      } catch (e) { setXlError((e as Error).message); }
-    })();
-  }, [data, isXlsx]);
+  // ── Excel: raw b64 is set in the main fetch effect above
 
   // ── PPTX parse ───────────────────────────────────────────────────
   useEffect(() => {
@@ -687,20 +393,7 @@ export default function PreviewPage() {
     setDocEditing(false);
   }, [docEditText, doSave]);
 
-  // ── Excel save ───────────────────────────────────────────────────
-  const saveExcel = useCallback(async () => {
-    const XLSX = await import('xlsx');
-    const wb = XLSX.utils.book_new();
-    for (const sheet of xlEditSheets) {
-      const aoa = [sheet.headers, ...sheet.rows];
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      XLSX.utils.book_append_sheet(wb, ws, sheet.name);
-    }
-    // XLSX.write with type:'array' returns a plain number[], not Uint8Array
-    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as number[];
-    await doSave(uint8ToB64(new Uint8Array(out)));
-    setXlEditing(false);
-  }, [xlEditSheets, doSave]);
+  // ── Excel save is handled internally by SpreadsheetViewer
 
   // ── PPTX save ────────────────────────────────────────────────────
   const savePpt = useCallback(async () => {
@@ -830,30 +523,11 @@ export default function PreviewPage() {
 
     // ── Excel / XLSX / XLS / CSV ────────────────────────────────────
     if (isXlsx) {
-      if (xlError) return <div className="auth-error">{xlError}</div>;
-      if (!xlSheets.length) return <div className="skeleton" style={{ height: 300, borderRadius: 'var(--radius-xl)' }} />;
-
-      const updateCell = (ri: number, ci: number, val: string) => {
-        setXlEditSheets((prev) => {
-          const next = prev.map((s) => ({ ...s, rows: s.rows.map((r) => [...r]) }));
-          const row = next[xlActiveSheet].rows[ri];
-          while (row.length <= ci) row.push('');
-          row[ci] = val;
-          return next;
-        });
-      };
-      const updateHeader = (ci: number, val: string) => {
-        setXlEditSheets((prev) => {
-          const next = prev.map((s) => ({ ...s, headers: [...s.headers] }));
-          while (next[xlActiveSheet].headers.length <= ci) next[xlActiveSheet].headers.push('');
-          next[xlActiveSheet].headers[ci] = val;
-          return next;
-        });
-      };
+      if (!xlRawB64) return <div className="skeleton" style={{ height: 300, borderRadius: 'var(--radius-xl)' }} />;
 
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          {xlDisclaimer && (
+        <>
+          {xlsxDisclaimer && (
             <DisclaimerModal
               fileName={fileName}
               bullets={[
@@ -861,25 +535,20 @@ export default function PreviewPage() {
                 'Formulas will be replaced by their last computed values (formula support is not available in browser editing).',
                 'Charts, macros, and complex formatting may not be preserved.',
               ]}
-              onConfirm={() => { setXlDisclaimer(false); setXlEditing(true); setXlEditSheets(xlSheets.map((s) => ({ ...s, headers: [...s.headers], rows: s.rows.map((r) => [...r]) }))); }}
-              onCancel={() => setXlDisclaimer(false)}
+              onConfirm={() => { setXlsxDisclaimer(false); setXlEditing(true); }}
+              onCancel={() => setXlsxDisclaimer(false)}
             />
           )}
           <SpreadsheetViewer
-            sheets={xlSheets}
-            editSheets={xlEditSheets}
-            activeSheet={xlActiveSheet}
-            onActiveSheetChange={setXlActiveSheet}
+            contentB64={xlRawB64}
+            ext={ext}
+            fileName={fileName}
             editing={xlEditing}
-            onCellChange={updateCell}
-            onHeaderChange={updateHeader}
+            onRequestEdit={() => setXlsxDisclaimer(true)}
+            doSave={doSave}
             saving={saving}
-            saved={saved}
-            saveError={saveError}
-            onSave={xlEditing ? saveExcel : () => setXlDisclaimer(true)}
-            onCancelEdit={() => { setXlEditing(false); clearSaveState(); }}
           />
-        </div>
+        </>
       );
     }
 
