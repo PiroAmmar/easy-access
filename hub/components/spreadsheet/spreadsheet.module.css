@@ -10,8 +10,8 @@
   --xl-selection-border: #217346;
   --xl-range-fill: rgba(33, 115, 70, 0.08);
   --xl-corner-bg: #f2f2f2;
-  --xl-ribbon-bg: #f3f2f1;
-  --xl-ribbon-border: #c7c7c7;
+  --xl-ribbon-bg: #f9f9f9;
+  --xl-ribbon-border: #e0e0e0;
   --xl-white: #ffffff;
   --xl-tab-active-border: #217346;
   --xl-text: #212121;
@@ -493,3 +493,91 @@
   border-radius: 1px;
 }
 .colorSwatch:hover { transform: scale(1.2); border-color: #000; }
+
+/* ── Insert/Delete panel ─────────────────────────────────────────────────── */
+.insertDeletePanel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  padding: 10px 12px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: #212121;
+}
+.insertDeletePanel label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: #616161;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.insertDeletePanel input[type="number"] {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+.insertDeletePanel input[type="number"]:focus {
+  border-color: #217346;
+  box-shadow: 0 0 0 2px rgba(33,115,70,0.12);
+}
+.insertDeleteRadioGroup {
+  display: flex;
+  gap: 8px;
+}
+.insertDeleteRadioGroup label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #212121;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.insertDeleteActions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+.insertDeleteOk {
+  background: #217346;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 4px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 600;
+}
+.insertDeleteOk:hover { background: #1a5c38; }
+.insertDeleteCancel {
+  background: #fff;
+  color: #212121;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.insertDeleteCancel:hover { background: #f0f0f0; }

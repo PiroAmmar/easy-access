@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import styles from './spreadsheet.module.css';
 import type { SpreadsheetState, SpreadsheetAction } from './useSpreadsheetState';
 import type { SpreadsheetEngine } from './engine';
@@ -70,6 +70,118 @@ function adjustDecimals(fmt: string, delta: number): string {
   }
 }
 
+// ─── InsertDeletePanel ────────────────────────────────────────────────────────
+
+type PanelKind = 'insertRows' | 'deleteRows' | 'insertCols' | 'deleteCols';
+
+interface InsertDeletePanelProps {
+  kind: PanelKind;
+  defaultCount: number;
+  defaultStart: number;   // 1-based row or col index from selection
+  onConfirm: (count: number, direction: string, start: number) => void;
+  onClose: () => void;
+}
+
+function InsertDeletePanel({ kind, defaultCount, defaultStart, onConfirm, onClose }: InsertDeletePanelProps) {
+  const [count, setCount] = useState(defaultCount);
+  const [direction, setDirection] = useState(
+    kind === 'insertRows' ? 'above' : kind === 'insertCols' ? 'left' : ''
+  );
+  const [start, setStart] = useState(defaultStart);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  const isInsert = kind === 'insertRows' || kind === 'insertCols';
+  const isRow = kind === 'insertRows' || kind === 'deleteRows';
+  const unitLabel = isRow ? 'row' : 'column';
+
+  const title = kind === 'insertRows' ? 'Insert Rows'
+    : kind === 'deleteRows' ? 'Delete Rows'
+    : kind === 'insertCols' ? 'Insert Columns'
+    : 'Delete Columns';
+
+  return (
+    <div ref={panelRef} className={styles.insertDeletePanel}>
+      <div style={{ fontWeight: 700, fontSize: 12, borderBottom: '1px solid #e8e8e8', paddingBottom: 6, marginBottom: 2 }}>
+        {title}
+      </div>
+
+      {/* Starting row/col */}
+      <label>
+        {isRow ? `Starting ${unitLabel} (1-based)` : `Starting ${unitLabel} (1-based)`}
+        <input
+          type="number"
+          min={1}
+          value={start}
+          onChange={e => setStart(Math.max(1, parseInt(e.target.value) || 1))}
+          autoFocus={!isInsert}
+        />
+      </label>
+
+      {/* Count */}
+      <label>
+        Number of {unitLabel}s (default 1)
+        <input
+          type="number"
+          min={1}
+          value={count}
+          onChange={e => setCount(Math.max(1, parseInt(e.target.value) || 1))}
+          autoFocus={isInsert}
+        />
+      </label>
+
+      {/* Direction (insert only) */}
+      {isInsert && (
+        <div>
+          <div style={{ fontSize: 11, color: '#616161', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: 4 }}>
+            Position
+          </div>
+          <div className={styles.insertDeleteRadioGroup}>
+            {isRow ? (
+              <>
+                <label>
+                  <input type="radio" name="dir" value="above" checked={direction === 'above'} onChange={() => setDirection('above')} />
+                  Above
+                </label>
+                <label>
+                  <input type="radio" name="dir" value="below" checked={direction === 'below'} onChange={() => setDirection('below')} />
+                  Below
+                </label>
+              </>
+            ) : (
+              <>
+                <label>
+                  <input type="radio" name="dir" value="left" checked={direction === 'left'} onChange={() => setDirection('left')} />
+                  Left
+                </label>
+                <label>
+                  <input type="radio" name="dir" value="right" checked={direction === 'right'} onChange={() => setDirection('right')} />
+                  Right
+                </label>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className={styles.insertDeleteActions}>
+        <button className={styles.insertDeleteCancel} onClick={onClose}>Cancel</button>
+        <button className={styles.insertDeleteOk} onClick={() => { onConfirm(count, direction, start); onClose(); }}>
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── RibbonGroup wrapper ──────────────────────────────────────────────────────
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
@@ -89,6 +201,7 @@ export default function Ribbon({ state, dispatch, editing, engine, onCopy, onCut
   const [fillColor, setFillColor] = useState('#ffff00');
   const [fontColor, setFontColor] = useState('#ff0000');
   const [clipboardMsg, setClipboardMsg] = useState('');
+  const [openPanel, setOpenPanel] = useState<PanelKind | null>(null);
 
   const focusCell = getFocusCell(state);
   const focusStyle: CellStyle = focusCell?.s ?? {};
@@ -453,44 +566,95 @@ export default function Ribbon({ state, dispatch, editing, engine, onCopy, onCut
 
       {/* ── Cells ── */}
       <Group label="Cells">
-        <RibbonDropdown
-          label={<span style={{ fontSize: 11 }}>Insert</span>}
-          items={[
-            { label: 'Insert Rows Above', value: 'rows' },
-            { label: 'Insert Columns Left', value: 'cols' },
-          ]}
-          onSelect={(v) => {
-            if (!editing) return;
-            if (v === 'rows') {
-              const count = nr.r2 - nr.r1 + 1;
-              dispatch({ type: 'INSERT_ROWS', sheet: state.activeSheet, rowIndex: nr.r1, count });
-            } else {
-              const count = nr.c2 - nr.c1 + 1;
-              dispatch({ type: 'INSERT_COLS', sheet: state.activeSheet, colIndex: nr.c1, count });
-            }
-          }}
-          disabled={!editing}
-          minWidth={110}
-        />
-        <RibbonDropdown
-          label={<span style={{ fontSize: 11 }}>Delete</span>}
-          items={[
-            { label: 'Delete Rows', value: 'rows' },
-            { label: 'Delete Columns', value: 'cols' },
-          ]}
-          onSelect={(v) => {
-            if (!editing) return;
-            if (v === 'rows') {
-              const count = nr.r2 - nr.r1 + 1;
-              dispatch({ type: 'DELETE_ROWS', sheet: state.activeSheet, rowIndex: nr.r1, count });
-            } else {
-              const count = nr.c2 - nr.c1 + 1;
-              dispatch({ type: 'DELETE_COLS', sheet: state.activeSheet, colIndex: nr.c1, count });
-            }
-          }}
-          disabled={!editing}
-          minWidth={110}
-        />
+        {/* Insert Rows */}
+        <div style={{ position: 'relative' }}>
+          <RibbonButton
+            onClick={() => { if (!editing) return; setOpenPanel(p => p === 'insertRows' ? null : 'insertRows'); }}
+            disabled={!editing}
+            title="Insert Rows"
+          >
+            <span style={{ fontSize: 10 }}>⊕ Rows</span>
+          </RibbonButton>
+          {openPanel === 'insertRows' && (
+            <InsertDeletePanel
+              kind="insertRows"
+              defaultCount={1}
+              defaultStart={nr.r1 + 1}
+              onConfirm={(count, direction, start) => {
+                const rowIndex = direction === 'below' ? start : start - 1;
+                dispatch({ type: 'INSERT_ROWS', sheet: state.activeSheet, rowIndex, count });
+              }}
+              onClose={() => setOpenPanel(null)}
+            />
+          )}
+        </div>
+
+        {/* Insert Cols */}
+        <div style={{ position: 'relative' }}>
+          <RibbonButton
+            onClick={() => { if (!editing) return; setOpenPanel(p => p === 'insertCols' ? null : 'insertCols'); }}
+            disabled={!editing}
+            title="Insert Columns"
+          >
+            <span style={{ fontSize: 10 }}>⊕ Cols</span>
+          </RibbonButton>
+          {openPanel === 'insertCols' && (
+            <InsertDeletePanel
+              kind="insertCols"
+              defaultCount={1}
+              defaultStart={nr.c1 + 1}
+              onConfirm={(count, direction, start) => {
+                const colIndex = direction === 'right' ? start : start - 1;
+                dispatch({ type: 'INSERT_COLS', sheet: state.activeSheet, colIndex, count });
+              }}
+              onClose={() => setOpenPanel(null)}
+            />
+          )}
+        </div>
+
+        {/* Delete Rows */}
+        <div style={{ position: 'relative' }}>
+          <RibbonButton
+            onClick={() => { if (!editing) return; setOpenPanel(p => p === 'deleteRows' ? null : 'deleteRows'); }}
+            disabled={!editing}
+            title="Delete Rows"
+          >
+            <span style={{ fontSize: 10 }}>⊖ Rows</span>
+          </RibbonButton>
+          {openPanel === 'deleteRows' && (
+            <InsertDeletePanel
+              kind="deleteRows"
+              defaultCount={nr.r2 - nr.r1 + 1}
+              defaultStart={nr.r1 + 1}
+              onConfirm={(count, _dir, start) => {
+                dispatch({ type: 'DELETE_ROWS', sheet: state.activeSheet, rowIndex: start - 1, count });
+              }}
+              onClose={() => setOpenPanel(null)}
+            />
+          )}
+        </div>
+
+        {/* Delete Cols */}
+        <div style={{ position: 'relative' }}>
+          <RibbonButton
+            onClick={() => { if (!editing) return; setOpenPanel(p => p === 'deleteCols' ? null : 'deleteCols'); }}
+            disabled={!editing}
+            title="Delete Columns"
+          >
+            <span style={{ fontSize: 10 }}>⊖ Cols</span>
+          </RibbonButton>
+          {openPanel === 'deleteCols' && (
+            <InsertDeletePanel
+              kind="deleteCols"
+              defaultCount={nr.c2 - nr.c1 + 1}
+              defaultStart={nr.c1 + 1}
+              onConfirm={(count, _dir, start) => {
+                dispatch({ type: 'DELETE_COLS', sheet: state.activeSheet, colIndex: start - 1, count });
+              }}
+              onClose={() => setOpenPanel(null)}
+            />
+          )}
+        </div>
       </Group>
 
       {/* ── Editing ── */}
