@@ -66,7 +66,9 @@ export async function loadWorkbook(b64: string, ext: string): Promise<WorkbookMo
 
   // ── XLSX / XLSM ──────────────────────────────────────────────────
   if (normalExt === '.xlsx' || normalExt === '.xlsm') {
-    const ExcelJS = await import('exceljs');
+    const _ejsMod = await import('exceljs');
+    // CJS interop: Next.js webpack gives module.exports directly; Node.js ESM gives { default: module }
+    const ExcelJS = ('Workbook' in _ejsMod ? _ejsMod : (_ejsMod as { default: typeof _ejsMod }).default) as typeof _ejsMod;
     const workbook = new ExcelJS.Workbook();
     const buffer = b64ToBuffer(b64);
     // ExcelJS declares Buffer as extending ArrayBuffer; the cast satisfies the type
@@ -304,7 +306,8 @@ export async function saveWorkbook(model: WorkbookModel, ext: string): Promise<s
 
   // ── XLSX ─────────────────────────────────────────────────────────
   if (normalExt === '.xlsx' || normalExt === '.xlsm') {
-    const ExcelJS = await import('exceljs');
+    const _ejsMod = await import('exceljs');
+    const ExcelJS = ('Workbook' in _ejsMod ? _ejsMod : (_ejsMod as { default: typeof _ejsMod }).default) as typeof _ejsMod;
     const workbook = new ExcelJS.Workbook();
 
     for (const sheetModel of model.sheets) {

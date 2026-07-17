@@ -95,7 +95,7 @@ function modelGetCell(model: WorkbookModel, sheetIdx: number, r: number, c: numb
 
 // ─── Initial state ─────────────────────────────────────────────────────────────
 
-function makeInitialState(initialModel: WorkbookModel): SpreadsheetState {
+export function makeInitialState(initialModel: WorkbookModel): SpreadsheetState {
   return {
     model: initialModel,
     activeSheet: 0,
@@ -275,7 +275,7 @@ function applyUndo(model: WorkbookModel, entry: UndoEntry, forward: boolean): Wo
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
-function reducer(state: SpreadsheetState, action: SpreadsheetAction): SpreadsheetState {
+export function reducer(state: SpreadsheetState, action: SpreadsheetAction): SpreadsheetState {
   switch (action.type) {
     case 'SET_MODEL': {
       return {
