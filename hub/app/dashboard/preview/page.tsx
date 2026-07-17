@@ -379,7 +379,7 @@ export default function PreviewPage() {
     setSaving(true);
     try {
       await saveFile(serverId, path, b64);
-      addFeedback({ type: 'success', title: 'Document saved', message: `Successfully saved \${fileName}` });
+      addFeedback({ type: 'success', title: 'Document saved', message: `Successfully saved ${fileName}` });
     } catch (e) {
       addFeedback({ type: 'error', title: 'Failed to save', message: (e as Error).message });
     }
@@ -530,11 +530,19 @@ export default function PreviewPage() {
           {xlsxDisclaimer && (
             <DisclaimerModal
               fileName={fileName}
-              bullets={[
-                'Overwrite the original Excel file on the remote machine with your edits.',
-                'Formulas will be replaced by their last computed values (formula support is not available in browser editing).',
-                'Charts, macros, and complex formatting may not be preserved.',
-              ]}
+              bullets={
+                ext === '.csv'
+                  ? [
+                      'Only the first sheet will be saved. All values are saved as plain text.',
+                    ]
+                  : ext === '.xls'
+                  ? [
+                      'This is a legacy format. Only cell values will be saved — formatting and formulas will be lost. Consider saving as .xlsx instead.',
+                    ]
+                  : [
+                      'Formulas and cell formatting are preserved. Saving will overwrite the original file on the remote computer.',
+                    ]
+              }
               onConfirm={() => { setXlsxDisclaimer(false); setXlEditing(true); }}
               onCancel={() => setXlsxDisclaimer(false)}
             />

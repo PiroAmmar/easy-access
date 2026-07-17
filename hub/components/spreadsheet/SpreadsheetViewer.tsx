@@ -116,7 +116,7 @@ export default function SpreadsheetViewer({
       const b64 = await saveWorkbook(state.model, ext);
       await doSave(b64);
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setSaved(false), 2000);
     } catch (e: unknown) {
       setSaveError((e as Error).message ?? 'Save failed');
     }
@@ -129,7 +129,7 @@ export default function SpreadsheetViewer({
         <div className={styles.actionBarLeft}>
           <span className={styles.fileName}>{fileName}</span>
           {editing && <span className={styles.editingBadge}>Editing</span>}
-          {saved && <span className={styles.savedBadge}>Saved</span>}
+          {saved && <span className={styles.savedBadge}>✓ Saved</span>}
           {saveError && <span className={styles.errorBadge}>{saveError}</span>}
         </div>
         <div className={styles.actionBarRight}>
