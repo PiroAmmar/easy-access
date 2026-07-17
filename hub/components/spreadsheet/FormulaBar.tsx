@@ -6,14 +6,16 @@ import type { SpreadsheetState, SpreadsheetAction } from './useSpreadsheetState'
 import { toA1 } from './coords';
 import { formatCell } from './formatting';
 import { getCell } from './useSpreadsheetState';
+import type { SpreadsheetEngine } from './engine';
 
 interface FormulaBarProps {
   state: SpreadsheetState;
   dispatch: React.Dispatch<SpreadsheetAction>;
   editing: boolean;
+  engine: SpreadsheetEngine | null;
 }
 
-export default function FormulaBar({ state, dispatch, editing }: FormulaBarProps) {
+export default function FormulaBar({ state, dispatch, editing, engine }: FormulaBarProps) {
   const { selection, editCell, activeSheet, model } = state;
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -31,13 +33,21 @@ export default function FormulaBar({ state, dispatch, editing }: FormulaBarProps
   // Determine display value for formula bar input
   let fxValue: string;
   if (editCell && editCell.r === focus.r && editCell.c === focus.c) {
+    // While editing, show the raw edit value (formula text or plain value)
     fxValue = editCell.value;
   } else {
     const cell = getCell(model, activeSheet, focus.r, focus.c);
     if (cell?.f) {
+      // Show the formula text (not the computed result) in the formula bar
       fxValue = '=' + cell.f;
     } else if (cell?.v !== null && cell?.v !== undefined) {
-      fxValue = formatCell(cell, undefined).text;
+      // For non-formula cells, show the formatted display value
+      // Use engine computed value if available (shouldn't differ for non-formula cells,
+      // but keep consistent with the grid display)
+      const computedValue = engine?.isReady()
+        ? engine.getDisplayValue(activeSheet, focus.r, focus.c)
+        : undefined;
+      fxValue = formatCell(cell, computedValue ?? undefined).text;
     } else {
       fxValue = '';
     }

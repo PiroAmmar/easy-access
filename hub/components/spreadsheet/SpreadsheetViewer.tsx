@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import styles from './spreadsheet.module.css';
-import { useSpreadsheetState } from './useSpreadsheetState';
+import { useSpreadsheetState, getCell } from './useSpreadsheetState';
+import type { SpreadsheetState } from './useSpreadsheetState';
 import { loadWorkbook, saveWorkbook } from './excel-io';
 import type { WorkbookModel } from './types';
 import FormulaBar from './FormulaBar';
 import SheetTabs from './SheetTabs';
 import Grid from './Grid';
+import { SpreadsheetEngine } from './engine';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +47,15 @@ export default function SpreadsheetViewer({
 
   const { state, dispatch } = useSpreadsheetState(EMPTY_WB);
 
+  // Keep a ref to the latest state for use in callbacks
+  const stateRef = useRef<SpreadsheetState>(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  // Engine ref — single instance, lazily initialized per workbook
+  const engineRef = useRef(new SpreadsheetEngine());
+
   // Load workbook when contentB64 or ext changes
   useEffect(() => {
     if (!contentB64) return;
@@ -54,8 +65,11 @@ export default function SpreadsheetViewer({
     setSaveError('');
 
     loadWorkbook(contentB64, ext)
-      .then((model) => {
+      .then(async (model) => {
         dispatch({ type: 'SET_MODEL', model });
+        // Destroy old engine state and reinitialize with new model
+        engineRef.current.destroy();
+        await engineRef.current.init(model);
       })
       .catch((e: unknown) => {
         setLoadError((e as Error).message ?? 'Failed to load workbook');
@@ -64,6 +78,33 @@ export default function SpreadsheetViewer({
         setIsLoading(false);
       });
   }, [contentB64, ext, dispatch]);
+
+  // Destroy engine on unmount
+  useEffect(() => {
+    return () => {
+      engineRef.current.destroy();
+    };
+  }, []);
+
+  // commitEdit: dispatch COMMIT_EDIT then sync the resulting cell to the engine
+  const commitEdit = useCallback((r: number, c: number) => {
+    dispatch({ type: 'COMMIT_EDIT' });
+    // Sync to engine after the state update (use rAF to let React flush)
+    requestAnimationFrame(() => {
+      const currentState = stateRef.current;
+      const cell = getCell(currentState.model, currentState.activeSheet, r, c);
+      if (cell?.f) {
+        engineRef.current.setFormula(currentState.activeSheet, r, c, cell.f);
+      } else {
+        const rawVal = cell?.v ?? null;
+        // Convert Date to Excel serial number for the engine
+        const engineVal = rawVal instanceof Date
+          ? rawVal.getTime() / 86400000 + 25569
+          : rawVal;
+        engineRef.current.setCellValue(currentState.activeSheet, r, c, engineVal);
+      }
+    });
+  }, [dispatch]);
 
   const handleSave = async () => {
     setSaved(false);
@@ -105,8 +146,10 @@ export default function SpreadsheetViewer({
                   dispatch({ type: 'CANCEL_EDIT' });
                   // We reload the original to discard changes
                   if (contentB64) {
-                    loadWorkbook(contentB64, ext).then((model) => {
+                    loadWorkbook(contentB64, ext).then(async (model) => {
                       dispatch({ type: 'SET_MODEL', model });
+                      engineRef.current.destroy();
+                      await engineRef.current.init(model);
                     }).catch(() => {});
                   }
                 }}
@@ -123,7 +166,7 @@ export default function SpreadsheetViewer({
       </div>
 
       {/* ── Formula bar ─────────────────────────────────────────────── */}
-      <FormulaBar state={state} dispatch={dispatch} editing={editing} />
+      <FormulaBar state={state} dispatch={dispatch} editing={editing} engine={engineRef.current} />
 
       {/* ── Grid (or loading / error) ────────────────────────────────── */}
       {isLoading ? (
@@ -131,7 +174,13 @@ export default function SpreadsheetViewer({
       ) : loadError ? (
         <div className={styles.errorState}>{loadError}</div>
       ) : (
-        <Grid state={state} dispatch={dispatch} editing={editing} />
+        <Grid
+          state={state}
+          dispatch={dispatch}
+          editing={editing}
+          engine={engineRef.current}
+          commitEdit={commitEdit}
+        />
       )}
 
       {/* ── Sheet tabs ───────────────────────────────────────────────── */}

@@ -6,6 +6,7 @@ import type { SpreadsheetState, SpreadsheetAction } from './useSpreadsheetState'
 import type { Cell, MergeRange, Selection } from './types';
 import { colLetter, buildCoveredSet, normalizeRange } from './coords';
 import { formatCell } from './formatting';
+import type { SpreadsheetEngine } from './engine';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,8 @@ interface SheetRowProps {
   dispatch: React.Dispatch<SpreadsheetAction>;
   version: number;
   rowHeight: number;
+  sheetIdx: number;
+  engine: SpreadsheetEngine | null;
   onMouseDown: (ri: number, ci: number, e: React.MouseEvent) => void;
   onMouseEnter: (ri: number, ci: number) => void;
   onDoubleClick: (ri: number, ci: number) => void;
@@ -85,7 +88,7 @@ interface SheetRowProps {
 const SheetRow = memo(function SheetRow({
   ri, cells, colWidths, totalCols, isRowSelected: rowSelected,
   selection, editCell, merges, coveredSet, editing,
-  dispatch, rowHeight,
+  dispatch, rowHeight, sheetIdx, engine,
   onMouseDown, onMouseEnter, onDoubleClick, onRowHeaderClick,
   onEditInputChange, onEditInputKeyDown, editInputRef,
 }: SheetRowProps) {
@@ -121,7 +124,14 @@ const SheetRow = memo(function SheetRow({
         const rowSpan = merge ? (merge.r2 - merge.r1 + 1) : 1;
 
         const w = colWidths[ci] ?? DEFAULT_COL_W;
-        const { text, defaultAlign } = formatCell(cell, undefined);
+
+        // For formula cells, use the computed value from the engine
+        let computedValue: import('./types').CellValue | undefined;
+        if (cell?.f && engine?.isReady()) {
+          computedValue = engine.getDisplayValue(sheetIdx, ri, ci);
+        }
+
+        const { text, defaultAlign } = formatCell(cell, computedValue);
         const textAlign = cell?.s?.hAlign ?? defaultAlign;
         const cellInlineStyle = getCellStyle(cell);
 
@@ -177,9 +187,11 @@ interface GridProps {
   state: SpreadsheetState;
   dispatch: React.Dispatch<SpreadsheetAction>;
   editing: boolean;
+  engine: SpreadsheetEngine | null;
+  commitEdit: (r: number, c: number) => void;
 }
 
-export default function Grid({ state, dispatch, editing }: GridProps) {
+export default function Grid({ state, dispatch, editing, engine, commitEdit }: GridProps) {
   const { model, activeSheet, selection, editCell } = state;
   const sheet = model.sheets[activeSheet];
   const containerRef = useRef<HTMLDivElement>(null);
@@ -267,21 +279,21 @@ export default function Grid({ state, dispatch, editing }: GridProps) {
     dispatch({ type: 'START_EDIT', r: editCell.r, c: editCell.c, initialValue: value });
   }, [dispatch, editCell]);
 
-  const handleEditInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>, _ri: number, _ci: number) => {
+  const handleEditInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>, ri: number, ci: number) => {
     e.stopPropagation();
     if (e.key === 'Enter') {
-      dispatch({ type: 'COMMIT_EDIT' });
+      commitEdit(ri, ci);
       dispatch({ type: 'MOVE_SELECTION', dr: 1, dc: 0, extend: false });
       e.preventDefault();
     } else if (e.key === 'Tab') {
-      dispatch({ type: 'COMMIT_EDIT' });
+      commitEdit(ri, ci);
       dispatch({ type: 'MOVE_SELECTION', dr: 0, dc: e.shiftKey ? -1 : 1, extend: false });
       e.preventDefault();
     } else if (e.key === 'Escape') {
       dispatch({ type: 'CANCEL_EDIT' });
       e.preventDefault();
     }
-  }, [dispatch]);
+  }, [commitEdit, dispatch]);
 
   const handleContainerKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (editCell) return; // let the inline input handle keys
@@ -425,6 +437,8 @@ export default function Grid({ state, dispatch, editing }: GridProps) {
                 dispatch={dispatch}
                 version={state.version}
                 rowHeight={rowH}
+                sheetIdx={activeSheet}
+                engine={engine}
                 onMouseDown={handleMouseDown}
                 onMouseEnter={handleMouseEnter}
                 onDoubleClick={handleDoubleClick}
