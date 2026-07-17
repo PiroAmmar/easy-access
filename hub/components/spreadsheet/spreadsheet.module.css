@@ -390,3 +390,106 @@
   border-top: 1px solid var(--xl-cell-border);
   text-align: center;
 }
+
+/* ── Ribbon ──────────────────────────────────────────────────────────────── */
+.ribbon {
+  display: flex;
+  align-items: stretch;
+  background: var(--xl-ribbon-bg, #f3f2f1);
+  border-bottom: 1px solid var(--xl-ribbon-border, #c7c7c7);
+  padding: 4px 4px 0;
+  min-height: 58px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0;
+  position: relative;
+}
+.ribbonGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 6px 0;
+  border-right: 1px solid #d1d1d1;
+  min-width: 40px;
+}
+.ribbonGroupLabel {
+  font-size: 10px;
+  color: #616161;
+  margin-top: auto;
+  padding: 2px 0 3px;
+  white-space: nowrap;
+}
+.ribbonGroupControls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+.ribbonBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 36px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: #212121;
+  font-family: inherit;
+  white-space: nowrap;
+  gap: 2px;
+  user-select: none;
+}
+.ribbonBtn:hover { background: #e5e5e5; border-color: #c8c8c8; }
+.ribbonBtn:active { background: #d0d0d0; }
+.ribbonBtnActive { background: #cce4f7 !important; border-color: #90c8f6 !important; }
+.ribbonBtnDisabled { opacity: 0.4; pointer-events: none; }
+.ribbonDropdown {
+  position: relative;
+  display: inline-flex;
+}
+.ribbonDropdownMenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  min-width: 140px;
+  padding: 2px 0;
+}
+.ribbonDropdownItem {
+  display: block;
+  width: 100%;
+  padding: 5px 12px;
+  font-size: 12px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #212121;
+  font-family: inherit;
+}
+.ribbonDropdownItem:hover { background: #e5f3fb; }
+.colorPicker {
+  display: grid;
+  grid-template-columns: repeat(10, 16px);
+  gap: 1px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.colorSwatch {
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(0,0,0,0.2);
+  cursor: pointer;
+  border-radius: 1px;
+}
+.colorSwatch:hover { transform: scale(1.2); border-color: #000; }

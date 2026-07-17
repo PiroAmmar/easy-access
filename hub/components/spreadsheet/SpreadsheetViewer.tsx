@@ -10,6 +10,8 @@ import FormulaBar from './FormulaBar';
 import SheetTabs from './SheetTabs';
 import Grid from './Grid';
 import { SpreadsheetEngine } from './engine';
+import Ribbon from './Ribbon';
+import FindReplaceDialog from './FindReplaceDialog';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +46,7 @@ export default function SpreadsheetViewer({
   const [isLoading, setIsLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [showFindReplace, setShowFindReplace] = useState(false);
 
   const { state, dispatch } = useSpreadsheetState(EMPTY_WB);
 
@@ -165,6 +168,18 @@ export default function SpreadsheetViewer({
         </div>
       </div>
 
+      {/* ── Ribbon ──────────────────────────────────────────────────── */}
+      <Ribbon
+        state={state}
+        dispatch={dispatch}
+        editing={editing}
+        engine={engineRef.current}
+        onCopy={() => {}}
+        onCut={() => {}}
+        onPaste={() => {}}
+        onFindReplace={() => setShowFindReplace(true)}
+      />
+
       {/* ── Formula bar ─────────────────────────────────────────────── */}
       <FormulaBar state={state} dispatch={dispatch} editing={editing} engine={engineRef.current} />
 
@@ -185,6 +200,15 @@ export default function SpreadsheetViewer({
 
       {/* ── Sheet tabs ───────────────────────────────────────────────── */}
       <SheetTabs state={state} dispatch={dispatch} />
+
+      {/* ── Find & Replace dialog ────────────────────────────────────── */}
+      {showFindReplace && (
+        <FindReplaceDialog
+          state={state}
+          dispatch={dispatch}
+          onClose={() => setShowFindReplace(false)}
+        />
+      )}
     </div>
   );
 }
