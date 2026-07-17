@@ -24,6 +24,9 @@ export type SpreadsheetAction =
   | { type: 'COMMIT_EDIT' }
   | { type: 'CANCEL_EDIT' }
   | { type: 'SET_CELL'; sheet: number; r: number; c: number; cell: Cell | null }
+  | { type: 'SET_CELLS_BATCH'; sheet: number; cells: { r: number; c: number; cell: Cell | null }[]; addUndo?: boolean }
+  | { type: 'RESIZE_COL'; sheet: number; col: number; width: number }
+  | { type: 'RESIZE_COL_COMMIT'; sheet: number; col: number; before: number; after: number }
   | { type: 'UNDO' }
   | { type: 'REDO' };
 
@@ -105,7 +108,17 @@ function applyUndo(model: WorkbookModel, entry: UndoEntry, forward: boolean): Wo
     }
     return m;
   }
-  // Other kinds not implemented in Phase 2 — return model unchanged
+  if (entry.kind === 'colWidth') {
+    const width = forward ? entry.after : entry.before;
+    const sheets = model.sheets.map((s, si) => {
+      if (si !== entry.sheet) return s;
+      const colWidths = [...s.colWidths];
+      colWidths[entry.col] = width;
+      return { ...s, colWidths };
+    });
+    return { ...model, sheets };
+  }
+  // Other kinds not implemented — return model unchanged
   return model;
 }
 
@@ -245,6 +258,55 @@ function reducer(state: SpreadsheetState, action: SpreadsheetAction): Spreadshee
       return {
         ...state,
         model: newModel,
+        undoStack: [...state.undoStack.slice(-MAX_UNDO + 1), entry],
+        redoStack: [],
+        version: state.version + 1,
+      };
+    }
+
+    case 'SET_CELLS_BATCH': {
+      const patches: { r: number; c: number; before: Cell | null; after: Cell | null }[] = [];
+      let newModel = state.model;
+      for (const { r, c, cell } of action.cells) {
+        const before = cloneCell(modelGetCell(newModel, action.sheet, r, c));
+        patches.push({ r, c, before, after: cell });
+        newModel = modelSetCell(newModel, action.sheet, r, c, cell);
+      }
+      if (action.addUndo) {
+        const entry: UndoEntry = { kind: 'cells', sheet: action.sheet, patches };
+        return {
+          ...state,
+          model: newModel,
+          undoStack: [...state.undoStack.slice(-MAX_UNDO + 1), entry],
+          redoStack: [],
+          version: state.version + 1,
+        };
+      }
+      return { ...state, model: newModel, version: state.version + 1 };
+    }
+
+    case 'RESIZE_COL': {
+      // Live update — no undo entry
+      const sheets = state.model.sheets.map((s, si) => {
+        if (si !== action.sheet) return s;
+        const colWidths = [...s.colWidths];
+        colWidths[action.col] = action.width;
+        return { ...s, colWidths };
+      });
+      return { ...state, model: { ...state.model, sheets }, version: state.version + 1 };
+    }
+
+    case 'RESIZE_COL_COMMIT': {
+      const sheets = state.model.sheets.map((s, si) => {
+        if (si !== action.sheet) return s;
+        const colWidths = [...s.colWidths];
+        colWidths[action.col] = action.after;
+        return { ...s, colWidths };
+      });
+      const entry: UndoEntry = { kind: 'colWidth', sheet: action.sheet, col: action.col, before: action.before, after: action.after };
+      return {
+        ...state,
+        model: { ...state.model, sheets },
         undoStack: [...state.undoStack.slice(-MAX_UNDO + 1), entry],
         redoStack: [],
         version: state.version + 1,

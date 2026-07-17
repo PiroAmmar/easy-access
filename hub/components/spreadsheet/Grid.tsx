@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useRef, useEffect, useCallback, memo } from 'react';
+import React, { useRef, useEffect, useCallback, memo, useState } from 'react';
 import styles from './spreadsheet.module.css';
 import type { SpreadsheetState, SpreadsheetAction } from './useSpreadsheetState';
 import type { Cell, MergeRange, Selection } from './types';
 import { colLetter, buildCoveredSet, normalizeRange } from './coords';
 import { formatCell } from './formatting';
 import type { SpreadsheetEngine } from './engine';
+import { rangeToCsv, rangeToHtml, parseTsv } from './clipboard';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -198,6 +199,10 @@ export default function Grid({ state, dispatch, editing, engine, commitEdit }: G
   const editInputRef = useRef<HTMLInputElement | null>(null);
   const isDragging = useRef(false);
   const dragAnchor = useRef<{ r: number; c: number } | null>(null);
+  const lastCopyRef = useRef<{ r1: number; c1: number; r2: number; c2: number } | null>(null);
+
+  // Column resize drag state
+  const [resizeDrag, setResizeDrag] = useState<{ col: number; startX: number; startWidth: number } | null>(null);
 
   if (!sheet) return null;
 
@@ -210,6 +215,9 @@ export default function Grid({ state, dispatch, editing, engine, commitEdit }: G
   const rowHeights = sheet.rowHeights;
 
   const coveredSet = buildCoveredSet(sheet.merges);
+
+  // Build column widths array padded to totalCols (needed by handlers below)
+  const effectiveColWidths = Array.from({ length: totalCols }, (_, ci) => colWidths[ci] ?? DEFAULT_COL_W);
 
   // Focus grid container when not editing
   useEffect(() => {
@@ -235,6 +243,23 @@ export default function Grid({ state, dispatch, editing, engine, commitEdit }: G
     window.addEventListener('mouseup', onMouseUp);
     return () => window.removeEventListener('mouseup', onMouseUp);
   }, []);
+
+  // Column resize global mouse handlers
+  useEffect(() => {
+    if (!resizeDrag) return;
+    const onMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.max(20, resizeDrag.startWidth + (e.clientX - resizeDrag.startX));
+      dispatch({ type: 'RESIZE_COL', sheet: activeSheet, col: resizeDrag.col, width: newWidth });
+    };
+    const onMouseUp = (e: MouseEvent) => {
+      const newWidth = Math.max(20, resizeDrag.startWidth + (e.clientX - resizeDrag.startX));
+      dispatch({ type: 'RESIZE_COL_COMMIT', sheet: activeSheet, col: resizeDrag.col, before: resizeDrag.startWidth, after: newWidth });
+      setResizeDrag(null);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
+  }, [resizeDrag, dispatch, activeSheet]);
 
   const handleMouseDown = useCallback((ri: number, ci: number, e: React.MouseEvent) => {
     e.preventDefault();
@@ -273,6 +298,66 @@ export default function Grid({ state, dispatch, editing, engine, commitEdit }: G
       focus: { r: ri, c: totalCols - 1 },
     });
   }, [dispatch, totalCols]);
+
+  // ── Clipboard ──────────────────────────────────────────────────────────────
+  const handleCopy = useCallback((e: React.ClipboardEvent) => {
+    if (!sheet) return;
+    const r1 = Math.min(selection.anchor.r, selection.focus.r);
+    const c1 = Math.min(selection.anchor.c, selection.focus.c);
+    const r2 = Math.max(selection.anchor.r, selection.focus.r);
+    const c2 = Math.max(selection.anchor.c, selection.focus.c);
+    e.clipboardData.setData('text/plain', rangeToCsv(sheet, r1, c1, r2, c2));
+    e.clipboardData.setData('text/html', rangeToHtml(sheet, r1, c1, r2, c2));
+    e.preventDefault();
+    lastCopyRef.current = { r1, c1, r2, c2 };
+  }, [sheet, selection]);
+
+  const handleCut = useCallback((e: React.ClipboardEvent) => {
+    if (!sheet || !editing) return;
+    handleCopy(e);
+    const r1 = Math.min(selection.anchor.r, selection.focus.r);
+    const c1 = Math.min(selection.anchor.c, selection.focus.c);
+    const r2 = Math.max(selection.anchor.r, selection.focus.r);
+    const c2 = Math.max(selection.anchor.c, selection.focus.c);
+    const cells: { r: number; c: number; cell: null }[] = [];
+    for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) cells.push({ r, c, cell: null });
+    dispatch({ type: 'SET_CELLS_BATCH', sheet: activeSheet, cells, addUndo: true });
+  }, [sheet, editing, handleCopy, selection, dispatch, activeSheet]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    if (!editing) return;
+    const tsv = e.clipboardData.getData('text/plain');
+    if (!tsv) return;
+    const rows = parseTsv(tsv);
+    const { r, c } = selection.focus;
+    const cells: { r: number; c: number; cell: { v: string } | null }[] = [];
+    for (let ri = 0; ri < rows.length; ri++) {
+      for (let ci = 0; ci < (rows[ri]?.length ?? 0); ci++) {
+        const val = rows[ri]?.[ci] ?? '';
+        cells.push({ r: r + ri, c: c + ci, cell: val === '' ? null : { v: val } });
+      }
+    }
+    dispatch({ type: 'SET_CELLS_BATCH', sheet: activeSheet, cells, addUndo: true });
+    e.preventDefault();
+  }, [editing, selection, dispatch, activeSheet]);
+
+  // ── Column autofit ─────────────────────────────────────────────────────────
+  const autofitCol = useCallback((ci: number) => {
+    if (!sheet) return;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.font = '14px Calibri, "Segoe UI", Arial, sans-serif';
+    let maxWidth = 40;
+    for (const row of sheet.cells.slice(0, MAX_ROWS)) {
+      const cell = row?.[ci] ?? null;
+      const { text } = formatCell(cell);
+      const w = ctx.measureText(text).width + 16;
+      if (w > maxWidth) maxWidth = w;
+    }
+    const before = effectiveColWidths[ci] ?? DEFAULT_COL_W;
+    dispatch({ type: 'RESIZE_COL_COMMIT', sheet: activeSheet, col: ci, before, after: Math.round(maxWidth) });
+  }, [sheet, dispatch, activeSheet, effectiveColWidths]);
 
   const handleEditInputChange = useCallback((value: string) => {
     if (!editCell) return;
@@ -378,16 +463,16 @@ export default function Grid({ state, dispatch, editing, engine, commitEdit }: G
     }
   }, [editCell, editing, dispatch, selection, activeSheet]);
 
-  // Build column widths array padded to totalCols
-  const effectiveColWidths = Array.from({ length: totalCols }, (_, ci) => colWidths[ci] ?? DEFAULT_COL_W);
-
   return (
     <div
       ref={containerRef}
       className={styles.grid}
       tabIndex={0}
       onKeyDown={handleContainerKeyDown}
-      style={{ outline: 'none' }}
+      onCopy={handleCopy}
+      onCut={handleCut}
+      onPaste={handlePaste}
+      style={{ outline: 'none', cursor: resizeDrag ? 'col-resize' : undefined }}
     >
       <table style={{ borderCollapse: 'collapse', tableLayout: 'fixed', width: 'max-content' }}>
         <colgroup>
@@ -406,10 +491,24 @@ export default function Grid({ state, dispatch, editing, engine, commitEdit }: G
               <th
                 key={ci}
                 className={`${styles.colHeader} ${isColSelected(ci, selection) ? styles.headerSelected : ''}`}
-                style={{ width: w, height: DEFAULT_ROW_H }}
+                style={{ width: w, height: DEFAULT_ROW_H, position: 'relative' }}
                 onClick={() => handleColHeaderClick(ci)}
               >
                 {colLetter(ci)}
+                {/* Resize handle */}
+                <div
+                  style={{
+                    position: 'absolute', right: 0, top: 0,
+                    width: 5, height: '100%',
+                    cursor: 'col-resize', zIndex: 1,
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setResizeDrag({ col: ci, startX: e.clientX, startWidth: w });
+                  }}
+                  onDoubleClick={(e) => { e.stopPropagation(); autofitCol(ci); }}
+                />
               </th>
             ))}
           </tr>
