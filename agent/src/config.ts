@@ -43,7 +43,7 @@ export function loadConfig(): AgentConfig {
   return config;
 }
 
-export function validateConfig(config: Partial<AgentConfig>): asserts config is AgentConfig {
+function validateConfig(config: Partial<AgentConfig>): asserts config is AgentConfig {
   if (!config.hubUrl || typeof config.hubUrl !== 'string') {
     throw new Error('Missing required field: hubUrl');
   }

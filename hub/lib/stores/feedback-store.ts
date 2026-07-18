@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export type FeedbackType = 'success' | 'error' | 'info' | 'progress';
 
-export interface FeedbackMessage {
+interface FeedbackMessage {
   id: string;
   type: FeedbackType;
   title: string;

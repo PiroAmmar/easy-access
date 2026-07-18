@@ -478,10 +478,11 @@ function DisclaimerModal({
 // ─── Toolbar strip used by all editors ───────────────────────────────────────
 
 function EditorToolbar({
-  label, saving, onSave, onCancel,
+  label, saving, onSave, onCancel, saved, saveError,
 }: {
   label: string; saving: boolean;
   onSave: () => void; onCancel: () => void;
+  saved?: boolean; saveError?: string;
 }) {
   return (
     <div style={{
@@ -499,6 +500,8 @@ function EditorToolbar({
         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>{label}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+        {saved && <span style={{ fontSize: 12, color: '#4ade80' }}>✓ Saved</span>}
+        {saveError && <span style={{ fontSize: 12, color: 'var(--color-danger)' }}>✗ {saveError}</span>}
         <button className="btn btn-primary btn-sm" onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : '💾 Save'}
         </button>
@@ -557,7 +560,14 @@ export default function PreviewPage() {
 
   // ── Save state ───────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const { add: addFeedback } = useFeedbackStore();
+
+  const clearSaveState = useCallback(() => {
+    setSaved(false);
+    setSaveError('');
+  }, []);
 
   // ── File type flags ──────────────────────────────────────────────
   const isImage  = ['.jpg','.jpeg','.png','.gif','.svg','.webp','.bmp','.ico'].includes(ext);
@@ -667,10 +677,14 @@ export default function PreviewPage() {
 
   const doSave = useCallback(async (b64: string) => {
     setSaving(true);
+    setSaved(false);
+    setSaveError('');
     try {
       await saveFile(serverId, path, b64);
-      addFeedback({ type: 'success', title: 'Document saved', message: \`Successfully saved \${fileName}\` });
+      setSaved(true);
+      addFeedback({ type: 'success', title: 'Document saved', message: `Successfully saved ${fileName}` });
     } catch (e) {
+      setSaveError((e as Error).message);
       addFeedback({ type: 'error', title: 'Failed to save', message: (e as Error).message });
     }
     finally { setSaving(false); }

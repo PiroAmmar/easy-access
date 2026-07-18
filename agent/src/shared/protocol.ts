@@ -47,12 +47,12 @@ export interface AgentAuthPayload {
   allowedDirs: string[];
 }
 
-export interface AgentHeartbeatPayload {
+interface AgentHeartbeatPayload {
   serverId: string;
   uptimeSeconds: number;
 }
 
-export interface AgentSystemInfoPayload {
+interface AgentSystemInfoPayload {
   os: string;             // e.g. "Windows 11", "Ubuntu 22.04"
   hostname: string;
   cpuUsagePercent: number;
@@ -61,13 +61,13 @@ export interface AgentSystemInfoPayload {
   disks: DiskInfo[];
 }
 
-export interface AgentFileListPayload {
+interface AgentFileListPayload {
   requestId: string;
   path: string;
   entries: FileEntry[];
 }
 
-export interface AgentFileContentPayload {
+interface AgentFileContentPayload {
   requestId: string;
   path: string;
   content: string;      // Base64 encoded file content
@@ -75,13 +75,13 @@ export interface AgentFileContentPayload {
   size: number;         // Original file size in bytes
 }
 
-export interface AgentFileOpResultPayload {
+interface AgentFileOpResultPayload {
   requestId: string;
   success: boolean;
   error?: string;
 }
 
-export interface AgentErrorPayload {
+interface AgentErrorPayload {
   requestId?: string;   // If error is in response to a specific request
   code: string;         // e.g. "PATH_DENIED", "FILE_NOT_FOUND", "FILE_TOO_LARGE"
   message: string;
@@ -89,46 +89,46 @@ export interface AgentErrorPayload {
 
 // ─── Payload Shapes (Hub → Agent) ─────────────────────────────────────────────
 
-export interface HubAuthOkPayload {
+interface HubAuthOkPayload {
   serverId: string;     // DB id of the matched server record
   serverName: string;
   allowedDirs: string[]; // Authoritative — set on the hub dashboard, agent must use this for enforcement
 }
 
-export interface HubListDirPayload {
+interface HubListDirPayload {
   requestId: string;    // Echoed in agent:file-list response
   path: string;         // Absolute path on the remote machine
 }
 
-export interface HubReadFilePayload {
+interface HubReadFilePayload {
   requestId: string;
   path: string;
 }
 
-export interface HubWriteFilePayload {
+interface HubWriteFilePayload {
   requestId: string;
   path: string;
   content: string;      // Base64 encoded
   overwrite: boolean;
 }
 
-export interface HubDeleteFilePayload {
+interface HubDeleteFilePayload {
   requestId: string;
   path: string;
 }
 
-export interface HubMoveFilePayload {
+interface HubMoveFilePayload {
   requestId: string;
   sourcePath: string;
   destinationPath: string;
 }
 
-export interface HubMkdirPayload {
+interface HubMkdirPayload {
   requestId: string;
   path: string;
 }
 
-export interface HubAllowedDirsUpdatePayload {
+interface HubAllowedDirsUpdatePayload {
   allowedDirs: string[];
 }
 
