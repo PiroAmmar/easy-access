@@ -12,7 +12,7 @@ import type { Server, Activity, Admin, DiskUsageInfo } from '@easy-access/shared
 /**
  * Execute a parameterized SQL query and return typed rows.
  */
-export async function query<T extends object>(
+async function query<T extends object>(
   text: string,
   params: unknown[] = []
 ): Promise<T[]> {
@@ -23,7 +23,7 @@ export async function query<T extends object>(
 /**
  * Execute a query and return the first row, or null if no rows matched.
  */
-export async function queryOne<T extends object>(
+async function queryOne<T extends object>(
   text: string,
   params: unknown[] = []
 ): Promise<T | null> {
@@ -47,7 +47,7 @@ export async function execute(
  * Run multiple queries in a single transaction.
  * If any query throws, the entire transaction is rolled back.
  */
-export async function transaction<T>(
+async function transaction<T>(
   fn: (client: PoolClient) => Promise<T>
 ): Promise<T> {
   const client = await pool.connect();
@@ -172,7 +172,7 @@ export async function updateServerSystemInfo(
 /**
  * Update the allowed directories for a server.
  */
-export async function updateServerAllowedDirs(
+async function updateServerAllowedDirs(
   id: string,
   allowedDirs: string[]
 ): Promise<void> {

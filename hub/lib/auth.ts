@@ -12,7 +12,7 @@ import { authConfig } from './auth.config';
 // Install: pnpm add bcryptjs && pnpm add -D @types/bcryptjs
 import bcrypt from 'bcryptjs';
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth } = NextAuth({
   ...authConfig,
   providers: [
     Credentials({

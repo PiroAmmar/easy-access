@@ -2,7 +2,7 @@
 // Shared TypeScript types matching the PostgreSQL schema.
 // Column names are camelCased from snake_case SQL via AS aliases in SELECT queries.
 
-export interface Server {
+interface Server {
   id: string;
   name: string;
   description: string | null;
@@ -22,7 +22,7 @@ export interface DiskUsageInfo {
   freeGb: number;
 }
 
-export interface Activity {
+interface Activity {
   id: string;
   type: string;
   path: string;
@@ -33,7 +33,7 @@ export interface Activity {
   serverName?: string;
 }
 
-export interface Admin {
+interface Admin {
   id: string;
   username: string;
   passwordHash: string;
@@ -59,7 +59,7 @@ export interface DiskInfo {
 }
 
 // Generic API response shape used by all hub API routes
-export interface ApiResponse<T = undefined> {
+type ApiResponse<T = any> = {
   success: boolean;
   data?: T;
   error?: string;

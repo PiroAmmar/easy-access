@@ -5,7 +5,7 @@
  * Format bytes to human-readable string.
  * e.g. 1024 → "1.0 KB", 1048576 → "1.0 MB"
  */
-export function formatBytes(bytes: number, decimals = 1): string {
+function formatBytes(bytes: number, decimals = 2): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -16,9 +16,9 @@ export function formatBytes(bytes: number, decimals = 1): string {
 /**
  * Format a Unix timestamp (ms) to a locale date string.
  */
-export function formatDate(timestampMs: number | Date): string {
-  const date = timestampMs instanceof Date ? timestampMs : new Date(timestampMs);
-  return date.toLocaleDateString(undefined, {
+function formatDate(date: Date | string | number): string {
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -41,7 +41,7 @@ export function getMimeType(filename: string): string {
     xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     xls:  'application/vnd.ms-excel',
     pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    ppt:  'application/vnd.ms-powerpoint',
+    ppt:  'application/mspowerpoint',
     // Text / Code
     txt:  'text/plain',
     md:   'text/markdown',
@@ -113,7 +113,7 @@ export function getMimeType(filename: string): string {
  * Sanitize a filename — strip path separators and dangerous characters.
  * Use this on display names, not for path validation (use validatePath for that).
  */
-export function sanitizeFilename(name: string): string {
+function sanitizeFilename(name: string): string {
   return name
     .replace(/[/\\:*?"<>|]/g, '_')  // Replace path/shell special chars
     .replace(/\.\./g, '_')            // No double-dots
@@ -123,13 +123,13 @@ export function sanitizeFilename(name: string): string {
 /**
  * Sleep for a given number of milliseconds.
  */
-export function sleep(ms: number): Promise<void> {
+function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 /**
  * Clamp a number between min and max.
  */
-export function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+function clamp(val: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, val));
 }

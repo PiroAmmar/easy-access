@@ -9,7 +9,7 @@ import { validatePath, SecurityError } from './security';
 import type { FileEntry } from './shared';
 import { getMimeType } from './shared';
 
-export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB hard limit
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB hard limit
 
 /**
  * List the contents of a directory.
