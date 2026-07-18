@@ -197,6 +197,30 @@
   position: relative;
   flex: 1;
   background: var(--xl-cell-bg);
+  scrollbar-width: auto;              /* Firefox: full-size scrollbar */
+  scrollbar-color: #9d9d9d #f1f1f1;   /* Firefox: classic Excel-like grey */
+}
+
+/* Chromium/WebKit: chunky, clearly visible Excel-style scrollbars */
+.grid::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.grid::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-left: 1px solid #e0e0e0;
+  border-top: 1px solid #e0e0e0;
+}
+.grid::-webkit-scrollbar-thumb {
+  background: #9d9d9d;
+  border: 3px solid #f1f1f1;
+  border-radius: 7px;
+}
+.grid::-webkit-scrollbar-thumb:hover {
+  background: #6e6e6e;
+}
+.grid::-webkit-scrollbar-corner {
+  background: #f1f1f1;
 }
 
 /* ── Column header ─────────────────────────────────────────────── */

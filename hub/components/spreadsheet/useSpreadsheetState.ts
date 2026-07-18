@@ -1,5 +1,6 @@
 import { useReducer } from 'react';
 import type { WorkbookModel, Cell, CellStyle, MergeRange, Selection, UndoEntry } from './types';
+import { editTextForValue, parseInputToValue } from './formatting';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -339,7 +340,7 @@ export function reducer(state: SpreadsheetState, action: SpreadsheetAction): Spr
         if (cell?.f) {
           value = '=' + cell.f;
         } else if (cell?.v !== null && cell?.v !== undefined) {
-          value = String(cell.v);
+          value = editTextForValue(cell.v, cell.s?.numFmt);
         } else {
           value = '';
         }
@@ -360,19 +361,19 @@ export function reducer(state: SpreadsheetState, action: SpreadsheetAction): Spr
       if (!state.editCell) return state;
       const { r, c, value } = state.editCell;
 
-      // Determine cell value from string
+      // Determine cell value from string; formatting stays with the cell
+      // (Excel keeps a cell's style when its contents are retyped or cleared)
+      const prevCell = modelGetCell(state.model, state.activeSheet, r, c);
+      const keepStyle = prevCell?.s ? { s: prevCell.s } : {};
       let newCell: Cell | null;
       if (value === '' || value === null || value === undefined) {
-        newCell = null;
+        newCell = prevCell?.s ? { v: null, ...keepStyle } : null;
       } else if (value.startsWith('=')) {
         // Formula
         const formula = value.slice(1);
-        newCell = { v: null, f: formula };
+        newCell = { v: null, f: formula, ...keepStyle };
       } else {
-        // Try to parse as number
-        const num = Number(value);
-        const cellValue = value.trim() !== '' && !isNaN(num) ? num : value;
-        newCell = { v: cellValue };
+        newCell = { v: parseInputToValue(value, prevCell?.s?.numFmt), ...keepStyle };
       }
 
       // Build undo entry

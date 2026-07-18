@@ -10,8 +10,9 @@
     "sidebar topbar"
     "sidebar content";
   min-height: 100dvh;
-  /* Prevent any child from expanding beyond viewport */
-  overflow-x: hidden;
+  /* clip (not hidden): hidden creates a scroll container, which breaks
+     position:sticky on the sidebar — the user box would scroll off-screen */
+  overflow-x: clip;
   max-width: 100vw;
 }
 

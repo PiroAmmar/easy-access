@@ -20,6 +20,18 @@ export function bufToB64(buf: ArrayBuffer): string {
   return btoa(bin);
 }
 
+// ─── Date clock conversion ───────────────────────────────────────────────────
+// exceljs keeps Excel's wall-clock time in a Date's UTC fields; our model (and
+// SheetJS) keep it in local fields. Convert at the xlsx boundary both ways.
+
+function utcToLocalClock(d: Date): Date {
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds(), d.getUTCMilliseconds());
+}
+
+function localClockToUtc(d: Date): Date {
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds()));
+}
+
 // ─── ARGB → #rrggbb ──────────────────────────────────────────────────────────
 
 function argbToHex(argb: string | undefined): string | undefined {
@@ -108,7 +120,7 @@ export async function loadWorkbook(b64: string, ext: string): Promise<WorkbookMo
               f = (cv.formula as string | undefined) ?? (cv.sharedFormula as string | undefined);
               const result = cv.result;
               if (result instanceof Date) {
-                v = result;
+                v = utcToLocalClock(result);
               } else if (typeof result === 'number' || typeof result === 'boolean' || typeof result === 'string') {
                 v = result;
               } else if (result === null || result === undefined) {
@@ -129,7 +141,7 @@ export async function loadWorkbook(b64: string, ext: string): Promise<WorkbookMo
               v = null;
             }
           } else if (cellValue instanceof Date) {
-            v = cellValue;
+            v = utcToLocalClock(cellValue);
           } else {
             v = cellValue as CellValue;
           }
@@ -253,24 +265,57 @@ export async function loadWorkbook(b64: string, ext: string): Promise<WorkbookMo
   if (normalExt === '.xls') {
     const XLSX = await import('xlsx');
     const u8 = new Uint8Array(b64ToBuffer(b64));
-    const wb = XLSX.read(u8, { type: 'array' });
+    // cellDates: real Date objects instead of raw serial numbers
+    // cellNF: keep the number format string on cell.z so display matches Excel
+    // cellStyles: column widths / row heights / whatever style info SheetJS exposes
+    const wb = XLSX.read(u8, { type: 'array', cellDates: true, cellNF: true, cellStyles: true });
 
     const sheets: SheetModel[] = wb.SheetNames.map((name) => {
       const ws = wb.Sheets[name];
-      const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' }) as unknown[][];
-      const cells: (Cell | null)[][] = raw.map((row) =>
-        row.map((v) => {
-          const val = v === '' ? null : (v as CellValue);
-          return val === null ? null : { v: val };
-        })
-      );
-      return {
-        name,
-        cells,
-        colWidths: Array(cells.reduce((m, r) => Math.max(m, r.length), 0)).fill(64),
-        rowHeights: cells.map(() => null),
-        merges: [],
-      };
+      const cells: (Cell | null)[][] = [];
+      let maxCols = 0;
+
+      const ref = ws['!ref'];
+      if (ref) {
+        const range = XLSX.utils.decode_range(ref);
+        maxCols = range.e.c + 1;
+        for (let r = range.s.r; r <= range.e.r; r++) {
+          const rowArr: (Cell | null)[] = [];
+          for (let c = range.s.c; c <= range.e.c; c++) {
+            const xc = ws[XLSX.utils.encode_cell({ r, c })] as
+              | { v?: unknown; z?: unknown; s?: Record<string, unknown> }
+              | undefined;
+            if (!xc || xc.v === undefined || xc.v === null || xc.v === '') {
+              rowArr.push(null);
+              continue;
+            }
+            const s: CellStyle = {};
+            if (xc.z && xc.z !== 'General') s.numFmt = String(xc.z);
+            // SheetJS community edition surfaces limited style info; take fill if present
+            const fg = (xc.s?.fgColor ?? undefined) as { rgb?: string } | undefined;
+            if (fg?.rgb && fg.rgb.length >= 6) s.fill = '#' + fg.rgb.slice(-6).toLowerCase();
+            rowArr.push({ v: xc.v as CellValue, ...(Object.keys(s).length ? { s } : {}) });
+          }
+          cells.push(rowArr);
+        }
+      }
+
+      const colsMeta = ws['!cols'] as Array<{ wpx?: number; wch?: number; width?: number }> | undefined;
+      const colWidths = Array.from({ length: Math.max(maxCols, 1) }, (_, i) => {
+        const cm = colsMeta?.[i];
+        if (cm?.wpx) return Math.round(cm.wpx);
+        const wch = cm?.wch ?? cm?.width;
+        return wch ? Math.round(wch * 7 + 5) : 64;
+      });
+
+      const rowsMeta = ws['!rows'] as Array<{ hpx?: number }> | undefined;
+      const rowHeights = cells.map((_, i) => (rowsMeta?.[i]?.hpx ? Math.round(rowsMeta[i]!.hpx!) : null));
+
+      const merges: MergeRange[] = (ws['!merges'] ?? []).map((m) => ({
+        r1: m.s.r, c1: m.s.c, r2: m.e.r, c2: m.e.c,
+      }));
+
+      return { name, cells, colWidths, rowHeights, merges };
     });
 
     return { sheets: sheets.length ? sheets : [emptySheet('Sheet1')] };
@@ -337,13 +382,14 @@ export async function saveWorkbook(model: WorkbookModel, ext: string): Promise<s
           const xlCell = row.getCell(ci + 1);
 
           // Value / formula
+          const outV = cell.v instanceof Date ? localClockToUtc(cell.v) : cell.v;
           if (cell.f) {
             // ExcelJS CellFormulaValue: result must be number|string|boolean|Date|undefined (not null)
-            const result = cell.v === null ? undefined : (cell.v as number | string | boolean | Date | undefined);
+            const result = outV === null ? undefined : (outV as number | string | boolean | Date | undefined);
             xlCell.value = { formula: cell.f, result } as { formula: string; result?: number | string | boolean | Date };
           } else {
             // ExcelJS CellValue accepts null, number, string, boolean, Date
-            xlCell.value = cell.v as null | number | string | boolean | Date;
+            xlCell.value = outV as null | number | string | boolean | Date;
           }
 
           // Style
@@ -424,17 +470,40 @@ export async function saveWorkbook(model: WorkbookModel, ext: string): Promise<s
     return bufToB64(bytes.buffer);
   }
 
-  // ── XLS fallback ─────────────────────────────────────────────────
+  // ── XLS fallback (BIFF8 — matches the .xls extension) ────────────
   const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
   for (const sheetModel of model.sheets) {
-    const aoa: (CellValue | undefined)[][] = sheetModel.cells.map((row) =>
-      (row ?? []).map((cell) => cell?.v ?? undefined)
-    );
-    const ws = XLSX.utils.aoa_to_sheet(aoa as Parameters<typeof XLSX.utils.aoa_to_sheet>[0]);
-    XLSX.utils.book_append_sheet(wb, ws, sheetModel.name);
+    const ws: Record<string, unknown> = {};
+    let maxR = 0;
+    let maxC = 0;
+    for (let r = 0; r < sheetModel.cells.length; r++) {
+      const rowArr = sheetModel.cells[r];
+      if (!rowArr) continue;
+      for (let c = 0; c < rowArr.length; c++) {
+        const cell = rowArr[c];
+        const v = cell?.v;
+        if (v === null || v === undefined) continue;
+        let xc: { t: string; v: unknown; z?: string };
+        if (v instanceof Date) xc = { t: 'd', v };
+        else if (typeof v === 'number') xc = { t: 'n', v };
+        else if (typeof v === 'boolean') xc = { t: 'b', v };
+        else xc = { t: 's', v: String(v) };
+        if (cell?.s?.numFmt && cell.s.numFmt !== 'General') xc.z = cell.s.numFmt;
+        ws[XLSX.utils.encode_cell({ r, c })] = xc;
+        if (r > maxR) maxR = r;
+        if (c > maxC) maxC = c;
+      }
+    }
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } });
+    if (sheetModel.merges.length) {
+      ws['!merges'] = sheetModel.merges.map((m) => ({ s: { r: m.r1, c: m.c1 }, e: { r: m.r2, c: m.c2 } }));
+    }
+    ws['!cols'] = sheetModel.colWidths.map((w) => ({ wpx: w }));
+    XLSX.utils.book_append_sheet(wb, ws as Parameters<typeof XLSX.utils.book_append_sheet>[1], sheetModel.name);
   }
-  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as number[];
+  const bookType = normalExt === '.xls' ? 'xls' : 'xlsx';
+  const out = XLSX.write(wb, { bookType, type: 'array', cellDates: false }) as number[];
   return bufToB64(new Uint8Array(out).buffer);
 }
 
